@@ -9,109 +9,67 @@
 #include <random>
 #include <thread>
 #include <chrono>
+#include <conio.h>
 
 using namespace std;
 
-// 自定义卡片颜色枚举（避免与console_ui.h中的Color冲突）
-enum CardColor {
-    COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_NONE
-};
+enum CardColor { COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_NONE };
+enum CardType { NUMBER, SKIP, REVERSE, DRAW_TWO, WILD, WILD_DRAW_FOUR };
 
-// 卡片类型枚举
-enum CardType {
-    NUMBER, SKIP, REVERSE, DRAW_TWO, WILD, WILD_DRAW_FOUR
-};
-
-// 卡片结构体
 struct Card {
     CardColor color;
     CardType type;
-    int number; // 仅当type为NUMBER时有效
-
+    int number;
     Card(CardColor c = COLOR_NONE, CardType t = NUMBER, int n = 0) : color(c), type(t), number(n) {}
-
-    // 获取卡片显示字符串
     string toString() const {
-        string colorStr;
-        switch (color) {
-            case COLOR_RED:    colorStr = "R"; break;
-            case COLOR_GREEN:  colorStr = "G"; break;
-            case COLOR_BLUE:   colorStr = "B"; break;
-            case COLOR_YELLOW: colorStr = "Y"; break;
-            default:           colorStr = "W"; break;
-        }
-        if (type == NUMBER) {
-            return colorStr + to_string(number);
-        } else if (type == SKIP) {
-            return colorStr + "S";
-        } else if (type == REVERSE) {
-            return colorStr + "R";
-        } else if (type == DRAW_TWO) {
-            return colorStr + "+2";
-        } else if (type == WILD) {
-            return "WD";
-        } else if (type == WILD_DRAW_FOUR) {
-            return "W+4";
-        }
-        return "???";
+        if (type == NUMBER) return to_string(number);
+        else if (type == SKIP) return "S";
+        else if (type == REVERSE) return "R";
+        else if (type == DRAW_TWO) return "+2";
+        else if (type == WILD) return "WD";
+        else if (type == WILD_DRAW_FOUR) return "W+4";
+        return "?";
     }
-
-    // 获取控制台颜色代码（映射到console_ui.h中的Color枚举值）
     int getColorCode() const {
         switch (color) {
-            case COLOR_RED:    return RED;    // 31
-            case COLOR_GREEN:  return GREEN;  // 32
-            case COLOR_BLUE:   return BLUE;   // 34
-            case COLOR_YELLOW: return YELLOW; // 33
+            case COLOR_RED:    return RED;
+            case COLOR_GREEN:  return GREEN;
+            case COLOR_BLUE:   return BLUE;
+            case COLOR_YELLOW: return YELLOW;
             default:           return DEFAULT;
         }
     }
+    bool operator==(const Card& other) const {
+        return color == other.color && type == other.type && number == other.number;
+    }
 };
 
-// 玩家类
 class Player {
 public:
     string name;
     bool isAI;
     vector<Card> hand;
-
     Player(const string& n, bool ai) : name(n), isAI(ai) {}
-
-    void addCard(const Card& card) {
-        hand.push_back(card);
-    }
-
-    void removeCard(int index) {
-        hand.erase(hand.begin() + index);
-    }
-
-    // 显示手牌（带索引）
-    void showHand() const {
-        for (size_t i = 0; i < hand.size(); ++i) {
-            const Card& c = hand[i];
-            clrtxt("[" + to_string(i) + "] ", DEFAULT);
-            clrtxt(c.toString(), c.getColorCode());
-            cout << " ";
-        }
-        cout << endl;
-    }
-
-    // 获取手牌数量
-    int getHandSize() const {
-        return hand.size();
-    }
+    void addCard(const Card& card) { hand.push_back(card); }
+    void removeCard(int index) { hand.erase(hand.begin() + index); }
+    int getHandSize() const { return hand.size(); }
 };
 
-// 游戏主类
 class UNOGame {
 private:
     vector<Player> players;
-    vector<Card> drawPile;    // 摸牌堆
-    vector<Card> discardPile; // 弃牌堆
-    int currentPlayer;        // 当前玩家索引
-    int direction;            // 1=顺时针, -1=逆时针
+    vector<Card> drawPile, discardPile;
+    int currentPlayer, direction;
     bool gameOver;
     int winnerIndex;
+    int termHeight, termWidth;
+    int lastCurrentPlayer;
+    vector<int> lastHandSizes;
+    Card lastTopCard;
+    int lastDrawPileSize;
+    bool firstDraw;
+    int selectedCardIndex;
+    bool waitingForHumanInput;
 
 public:
     UNOGame();
@@ -132,11 +90,26 @@ private:
     int getNextPlayerAfterSkip(int skipped);
     CardColor chooseWildColor();
     bool playTurn();
-    void drawUI();
+    void drawFullUI();
+    void updateUI();
+    void drawCardBack(int x, int y);
+    void drawCardFace(const Card& card, int x, int y, bool highlight = false, bool legal = false);
+    void drawPlayerAreaStatic();
+    void drawCenterPileStatic();
+    void drawBorder();
+    void drawMessage(const string& msg, int color = YELLOW);
+    void clearMessageArea();
+    void handleHumanTurn();
+    int findFirstLegalCardIndex();
+    void moveSelectionLeft();
+    void moveSelectionRight();
+    string centerString(const string& sym) const {
+        if (sym.size() == 1) return string("  ") + sym + string("  ");
+        else return string(" ") + sym + string("  ");
+    }
 };
 
-// 实现部分
-UNOGame::UNOGame() {
+UNOGame::UNOGame() : lastCurrentPlayer(-1), lastDrawPileSize(-1), firstDraw(true), selectedCardIndex(0), waitingForHumanInput(false) {
     srand(time(nullptr));
     setupPlayers();
     initGame();
@@ -147,47 +120,36 @@ void UNOGame::setupPlayers() {
     clrtxt("请输入你的名字: ", CYAN);
     cin >> playerName;
     players.push_back(Player(playerName, false));
-
     int aiCount;
     clrtxt("请输入AI玩家数量 (1~3): ", CYAN);
     cin >> aiCount;
     aiCount = max(1, min(3, aiCount));
-    for (int i = 1; i <= aiCount; ++i) {
-        players.push_back(Player("AI_" + to_string(i), true));
-    }
+    for (int i = 1; i <= aiCount; ++i)
+        players.push_back(Player(string("AI_") + to_string(i), true));
 }
 
 void UNOGame::initGame() {
-    createDeck();
-    shuffleDeck();
-    dealCards();
-    setupDiscardPile();
-    currentPlayer = 0;
-    direction = 1;
-    gameOver = false;
-    winnerIndex = -1;
+    createDeck(); shuffleDeck(); dealCards(); setupDiscardPile();
+    currentPlayer = 0; direction = 1; gameOver = false; winnerIndex = -1;
+    termHeight = termh(); termWidth = termw();
+    lastHandSizes.resize(players.size(), -1);
 }
 
 void UNOGame::createDeck() {
     drawPile.clear();
-    // 数字牌: 每种颜色0~9，0一张，1~9各两张
     CardColor colors[] = {COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW};
     for (auto color : colors) {
-        // 数字0
         drawPile.push_back(Card(color, NUMBER, 0));
-        // 数字1~9 各两张
         for (int num = 1; num <= 9; ++num) {
             drawPile.push_back(Card(color, NUMBER, num));
             drawPile.push_back(Card(color, NUMBER, num));
         }
-        // 功能牌: SKIP, REVERSE, DRAW_TWO 各两张
         for (int i = 0; i < 2; ++i) {
             drawPile.push_back(Card(color, SKIP));
             drawPile.push_back(Card(color, REVERSE));
             drawPile.push_back(Card(color, DRAW_TWO));
         }
     }
-    // 万能牌: WILD 和 WILD_DRAW_FOUR 各4张
     for (int i = 0; i < 4; ++i) {
         drawPile.push_back(Card(COLOR_NONE, WILD));
         drawPile.push_back(Card(COLOR_NONE, WILD_DRAW_FOUR));
@@ -200,39 +162,31 @@ void UNOGame::shuffleDeck() {
 }
 
 void UNOGame::dealCards() {
-    for (int i = 0; i < 7; ++i) {
+    for (int i = 0; i < 7; ++i)
         for (auto& player : players) {
             if (drawPile.empty()) reshuffleDiscard();
-            player.addCard(drawPile.back());
-            drawPile.pop_back();
+            player.addCard(drawPile.back()); drawPile.pop_back();
         }
-    }
 }
 
 void UNOGame::setupDiscardPile() {
     do {
         if (drawPile.empty()) reshuffleDiscard();
-        discardPile.push_back(drawPile.back());
-        drawPile.pop_back();
+        discardPile.push_back(drawPile.back()); drawPile.pop_back();
     } while (discardPile.back().type == WILD_DRAW_FOUR);
 }
 
 void UNOGame::reshuffleDiscard() {
     if (discardPile.size() <= 1) return;
-    Card top = discardPile.back();
-    discardPile.pop_back();
-    for (const auto& card : discardPile) {
-        drawPile.push_back(card);
-    }
-    discardPile.clear();
-    discardPile.push_back(top);
+    Card top = discardPile.back(); discardPile.pop_back();
+    for (const auto& card : discardPile) drawPile.push_back(card);
+    discardPile.clear(); discardPile.push_back(top);
     shuffleDeck();
 }
 
 Card UNOGame::drawCard() {
     if (drawPile.empty()) reshuffleDiscard();
-    Card c = drawPile.back();
-    drawPile.pop_back();
+    Card c = drawPile.back(); drawPile.pop_back();
     return c;
 }
 
@@ -245,19 +199,14 @@ bool UNOGame::isLegalPlay(const Card& played, const Card& top) const {
 }
 
 void UNOGame::applyCardEffect(const Card& card) {
-    // 处理 +2 或 +4 抽牌
     if (card.type == DRAW_TWO) {
         int next = getNextPlayer();
-        for (int i = 0; i < 2; ++i) {
-            players[next].addCard(drawCard());
-        }
+        for (int i = 0; i < 2; ++i) players[next].addCard(drawCard());
         currentPlayer = getNextPlayerAfterSkip(next);
     }
     else if (card.type == WILD_DRAW_FOUR) {
         int next = getNextPlayer();
-        for (int i = 0; i < 4; ++i) {
-            players[next].addCard(drawCard());
-        }
+        for (int i = 0; i < 4; ++i) players[next].addCard(drawCard());
         CardColor newColor = chooseWildColor();
         discardPile.back().color = newColor;
         currentPlayer = getNextPlayerAfterSkip(next);
@@ -271,10 +220,8 @@ void UNOGame::applyCardEffect(const Card& card) {
         currentPlayer = getNextPlayer();
     }
     else {
-        // 普通数字牌或普通万能牌
         currentPlayer = getNextPlayer();
     }
-
     if (currentPlayer >= (int)players.size()) currentPlayer = 0;
     if (currentPlayer < 0) currentPlayer = players.size() - 1;
 }
@@ -295,8 +242,7 @@ int UNOGame::getNextPlayerAfterSkip(int skipped) {
 
 CardColor UNOGame::chooseWildColor() {
     if (players[currentPlayer].isAI) {
-        // AI 选择自己手牌中数量最多的颜色
-        int count[4] = {0,0,0,0}; // R,G,B,Y
+        int count[4] = {0};
         for (const auto& card : players[currentPlayer].hand) {
             if (card.color == COLOR_RED) count[0]++;
             else if (card.color == COLOR_GREEN) count[1]++;
@@ -304,19 +250,18 @@ CardColor UNOGame::chooseWildColor() {
             else if (card.color == COLOR_YELLOW) count[3]++;
         }
         int maxIdx = 0;
-        for (int i = 1; i < 4; ++i)
-            if (count[i] > count[maxIdx]) maxIdx = i;
+        for (int i = 1; i < 4; ++i) if (count[i] > count[maxIdx]) maxIdx = i;
         CardColor colors[] = {COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW};
         return colors[maxIdx];
     } else {
-        clrtxt("请选择新颜色: 0-红, 1-绿, 2-蓝, 3-黄\n", YELLOW);
+        drawMessage(string("请选择新颜色: 0-红, 1-绿, 2-蓝, 3-黄 (按数字键)"), YELLOW);
         int choice;
-        cin >> choice;
-        while (choice < 0 || choice > 3) {
-            clrtxt("无效选择，请重新输入: ", RED);
-            cin >> choice;
+        while (true) {
+            char ch = _getch();
+            if (ch >= '0' && ch <= '3') { choice = ch - '0'; break; }
         }
         CardColor colors[] = {COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW};
+        clearMessageArea();
         return colors[choice];
     }
 }
@@ -324,197 +269,291 @@ CardColor UNOGame::chooseWildColor() {
 bool UNOGame::playTurn() {
     Player& player = players[currentPlayer];
     Card topCard = discardPile.back();
-
-    drawUI();
-
+    updateUI();
     if (player.isAI) {
-        clrtxt(player.name + " (AI) 正在思考...\n", CYAN);
+        drawMessage(player.name + string(" (AI) 正在思考..."), CYAN);
+        this_thread::sleep_for(chrono::milliseconds(800));
         for (size_t i = 0; i < player.hand.size(); ++i) {
             if (isLegalPlay(player.hand[i], topCard)) {
                 Card played = player.hand[i];
                 player.removeCard(i);
                 discardPile.push_back(played);
-
-                clrtxt(player.name + " 出了: ", YELLOW);
-                clrtxt(played.toString(), played.getColorCode());
-                cout << endl;
-
-                if (player.hand.empty()) {
-                    gameOver = true;
-                    winnerIndex = currentPlayer;
-                    return true;
-                }
-
+                drawMessage(player.name + string(" 出了: ") + played.toString(), played.getColorCode());
+                this_thread::sleep_for(chrono::milliseconds(500));
+                if (player.hand.empty()) { gameOver = true; winnerIndex = currentPlayer; return true; }
                 applyCardEffect(played);
                 return true;
             }
         }
-        // 无合法牌，摸一张
-        clrtxt(player.name + " 无牌可出，摸一张牌。\n", MAGENTA);
+        drawMessage(player.name + string(" 无牌可出，摸一张牌。"), MAGENTA);
         Card newCard = drawCard();
         player.addCard(newCard);
-        clrtxt("摸到: ", DEFAULT);
-        clrtxt(newCard.toString(), newCard.getColorCode());
-        cout << endl;
-
+        drawMessage(string("摸到: ") + newCard.toString(), newCard.getColorCode());
+        this_thread::sleep_for(chrono::milliseconds(500));
         if (isLegalPlay(newCard, topCard)) {
-            clrtxt("新摸的牌可以出，自动出牌！\n", GREEN);
+            drawMessage(string("新摸的牌可以出，自动出牌！"), GREEN);
             player.removeCard(player.hand.size() - 1);
             discardPile.push_back(newCard);
-            if (player.hand.empty()) {
-                gameOver = true;
-                winnerIndex = currentPlayer;
-                return true;
-            }
+            if (player.hand.empty()) { gameOver = true; winnerIndex = currentPlayer; return true; }
             applyCardEffect(newCard);
-        } else {
-            currentPlayer = getNextPlayer();
-        }
+        } else currentPlayer = getNextPlayer();
+        return true;
+    } else {
+        handleHumanTurn();
         return true;
     }
-    else {
-        // 人类玩家
-        clrtxt("\n你的手牌: ", CYAN);
-        player.showHand();
-        clrtxt("当前牌堆顶: ", CYAN);
-        clrtxt(topCard.toString(), topCard.getColorCode());
-        cout << endl;
+}
 
-        vector<int> legalIndices;
-        for (size_t i = 0; i < player.hand.size(); ++i) {
-            if (isLegalPlay(player.hand[i], topCard)) {
-                legalIndices.push_back(i);
-            }
+int UNOGame::findFirstLegalCardIndex() {
+    Card topCard = discardPile.back();
+    for (size_t i = 0; i < players[0].hand.size(); ++i)
+        if (isLegalPlay(players[0].hand[i], topCard)) return i;
+    return -1;
+}
+
+void UNOGame::moveSelectionLeft() {
+    if (players[0].hand.empty()) return;
+    int orig = selectedCardIndex, newIdx = selectedCardIndex;
+    Card topCard = discardPile.back();
+    do {
+        newIdx = (newIdx - 1 + (int)players[0].hand.size()) % players[0].hand.size();
+        if (newIdx == orig) break;
+        if (isLegalPlay(players[0].hand[newIdx], topCard)) {
+            selectedCardIndex = newIdx; updateUI(); return;
         }
+    } while (newIdx != orig);
+}
 
-        if (!legalIndices.empty()) {
-            clrtxt("可出的牌索引: ", GREEN);
-            for (int idx : legalIndices) cout << idx << " ";
-            cout << endl;
+void UNOGame::moveSelectionRight() {
+    if (players[0].hand.empty()) return;
+    int orig = selectedCardIndex, newIdx = selectedCardIndex;
+    Card topCard = discardPile.back();
+    do {
+        newIdx = (newIdx + 1) % players[0].hand.size();
+        if (newIdx == orig) break;
+        if (isLegalPlay(players[0].hand[newIdx], topCard)) {
+            selectedCardIndex = newIdx; updateUI(); return;
+        }
+    } while (newIdx != orig);
+}
 
-            int choice;
-            clrtxt("请选择出牌索引 (或输入 -1 摸牌): ", YELLOW);
-            cin >> choice;
-
-            if (choice == -1) {
-                Card newCard = drawCard();
-                player.addCard(newCard);
-                clrtxt("你摸到了一张: ", DEFAULT);
-                clrtxt(newCard.toString(), newCard.getColorCode());
-                cout << endl;
-
-                if (isLegalPlay(newCard, topCard)) {
-                    clrtxt("是否出这张牌? (1=是, 0=否): ", CYAN);
-                    int confirm;
-                    cin >> confirm;
-                    if (confirm == 1) {
-                        player.removeCard(player.hand.size() - 1);
-                        discardPile.push_back(newCard);
-                        clrtxt("你出了刚摸的牌！\n", GREEN);
-                        if (player.hand.empty()) {
-                            gameOver = true;
-                            winnerIndex = currentPlayer;
-                            return true;
-                        }
-                        applyCardEffect(newCard);
-                    } else {
-                        currentPlayer = getNextPlayer();
-                    }
-                } else {
-                    clrtxt("这张牌不能出，轮到下一家。\n", RED);
-                    currentPlayer = getNextPlayer();
-                }
-                return true;
-            }
-
-            bool valid = false;
-            for (int idx : legalIndices) if (idx == choice) { valid = true; break; }
-            if (!valid || choice < 0 || choice >= (int)player.hand.size()) {
-                clrtxt("无效出牌，你失去这一回合！\n", RED);
-                currentPlayer = getNextPlayer();
-                return true;
-            }
-
-            Card played = player.hand[choice];
-            player.removeCard(choice);
-            discardPile.push_back(played);
-            clrtxt("你出了: ", YELLOW);
-            clrtxt(played.toString(), played.getColorCode());
-            cout << endl;
-
-            if (player.hand.empty()) {
-                gameOver = true;
-                winnerIndex = currentPlayer;
-                return true;
-            }
-            applyCardEffect(played);
-        } else {
-            clrtxt("没有可出的牌，必须摸一张。\n", RED);
-            Card newCard = drawCard();
-            player.addCard(newCard);
-            clrtxt("摸到: ", DEFAULT);
-            clrtxt(newCard.toString(), newCard.getColorCode());
-            cout << endl;
-            if (isLegalPlay(newCard, topCard)) {
-                clrtxt("新牌可以出，自动出牌！\n", GREEN);
-                player.removeCard(player.hand.size() - 1);
-                discardPile.push_back(newCard);
-                if (player.hand.empty()) {
-                    gameOver = true;
-                    winnerIndex = currentPlayer;
-                    return true;
-                }
-                applyCardEffect(newCard);
+void UNOGame::handleHumanTurn() {
+    Card topCard = discardPile.back();
+    int firstLegal = findFirstLegalCardIndex();
+    if (firstLegal != -1) selectedCardIndex = firstLegal;
+    else selectedCardIndex = 0;
+    waitingForHumanInput = true;
+    updateUI();
+    drawMessage(string("方向键移动选中，Enter出牌，空格摸牌"), CYAN);
+    while (waitingForHumanInput) {
+        int key = _getch();
+        if (key == 224 || key == 0) {
+            key = _getch();
+            if (key == 75) moveSelectionLeft();
+            else if (key == 77) moveSelectionRight();
+        } else if (key == 13) {
+            if (firstLegal != -1 && isLegalPlay(players[0].hand[selectedCardIndex], topCard)) {
+                Card played = players[0].hand[selectedCardIndex];
+                players[0].removeCard(selectedCardIndex);
+                discardPile.push_back(played);
+                drawMessage(string("你出了: ") + played.toString(), played.getColorCode());
+                if (players[0].hand.empty()) { gameOver = true; winnerIndex = currentPlayer; waitingForHumanInput = false; return; }
+                applyCardEffect(played);
+                waitingForHumanInput = false; return;
             } else {
+                drawMessage(string("选中的牌不能出！请选择可出的牌（有下划线的牌）。"), RED);
+                this_thread::sleep_for(chrono::milliseconds(800));
+                updateUI();
+                drawMessage(string("方向键移动选中，Enter出牌，空格摸牌"), CYAN);
+            }
+        } else if (key == 32) {
+            Card newCard = drawCard();
+            players[0].addCard(newCard);
+            drawMessage(string("你摸到了一张: ") + newCard.toString(), newCard.getColorCode());
+            if (isLegalPlay(newCard, topCard)) {
+                drawMessage(string("是否出这张牌? (Y/N)"), CYAN);
+                int confirm = _getch();
+                if (confirm == 'y' || confirm == 'Y') {
+                    players[0].removeCard(players[0].hand.size() - 1);
+                    discardPile.push_back(newCard);
+                    drawMessage(string("你出了刚摸的牌！"), GREEN);
+                    if (players[0].hand.empty()) { gameOver = true; winnerIndex = currentPlayer; waitingForHumanInput = false; return; }
+                    applyCardEffect(newCard);
+                    waitingForHumanInput = false; return;
+                } else {
+                    drawMessage(string("保留新牌，轮到下一家。"), DEFAULT);
+                    this_thread::sleep_for(chrono::milliseconds(800));
+                    currentPlayer = getNextPlayer();
+                    waitingForHumanInput = false; return;
+                }
+            } else {
+                drawMessage(string("这张牌不能出，轮到下一家。"), RED);
+                this_thread::sleep_for(chrono::milliseconds(800));
                 currentPlayer = getNextPlayer();
+                waitingForHumanInput = false; return;
             }
         }
-        return true;
     }
 }
 
-void UNOGame::drawUI() {
+// ======================= 界面绘制（全部使用显式 string 构造） =======================
+void UNOGame::drawBorder() {
     printf("\033[2J\033[H");
-    clrtxt("========== UNO 游戏 ==========\n", WHITE, BG_BLUE, TS_BOLD);
-    for (size_t i = 0; i < players.size(); ++i) {
-        if (i == currentPlayer) clrtxt("-> ", GREEN);
-        else clrtxt("   ", DEFAULT);
-        clrtxt(players[i].name + " (" + to_string(players[i].getHandSize()) + "张)", CYAN);
-        if (players[i].isAI) clrtxt(" [AI]", MAGENTA);
-        cout << endl;
+    clrtxt("╔", CYAN);
+    for (int i = 1; i < termWidth-1; ++i) clrtxt("═", CYAN);
+    clrtxt("╗", CYAN);
+    for (int r = 1; r < termHeight-1; ++r) {
+        mvc(0, r); clrtxt("║", CYAN);
+        mvc(termWidth-1, r); clrtxt("║", CYAN);
     }
-    clrtxt("\n当前牌堆顶: ", CYAN);
-    clrtxt(discardPile.back().toString(), discardPile.back().getColorCode());
-    cout << endl;
-    clrtxt("摸牌堆剩余: " + to_string(drawPile.size()) + " 张\n", DEFAULT);
-    cout << endl;
+    mvc(0, termHeight-1); clrtxt("╚", CYAN);
+    for (int i = 1; i < termWidth-1; ++i) clrtxt("═", CYAN);
+    clrtxt("╝", CYAN);
+    mvc(termWidth/2 - 4, 0);
+    clrtxt(" UNO ", WHITE, BG_RED, TS_BOLD);
 }
+
+void UNOGame::drawCenterPileStatic() {
+    int centerX = termWidth / 2 - 7;
+    int centerY = termHeight / 2 - 2;
+    mvc(centerX, centerY-1); clrtxt("━━━━━━━━━━━━━━━━━━━━━━━━━━", CYAN);
+    mvc(centerX+2, centerY-1); clrtxt(" 弃牌堆 ", WHITE, BG_BLUE, TS_BOLD);
+    mvc(centerX, centerY+4); clrtxt("摸牌堆", CYAN);
+}
+
+void UNOGame::drawPlayerAreaStatic() {
+    int n = players.size();
+    int topY = 2, bottomY = termHeight - 4, leftX = 2, rightX = termWidth - 12;
+    for (int i = 0; i < n; ++i) {
+        int x, y;
+        if (i == 0) { y = bottomY; x = leftX; }
+        else if (i == 1) { y = topY + 4; x = leftX; }
+        else if (i == 2) { y = topY + 4; x = rightX; }
+        else { y = topY; x = termWidth/2 - 8; }
+        mvc(x, y-2);
+        string namePlace = players[i].name + string(" (   张)");
+        clrtxt(namePlace.c_str(), DEFAULT);
+        if (players[i].isAI) clrtxt(" [AI]", MAGENTA);
+    }
+}
+
+void UNOGame::drawFullUI() {
+    termHeight = termh(); termWidth = termw();
+    drawBorder(); drawCenterPileStatic(); drawPlayerAreaStatic();
+    updateUI();
+}
+
+void UNOGame::drawCardBack(int x, int y) {
+    mvc(x, y);     clrtxt("     ", DEFAULT);
+    mvc(x, y+1);   clrtxt(" ## ", DEFAULT, BG_BLUE, TS_BOLD);
+    mvc(x, y+2);   clrtxt("     ", DEFAULT);
+}
+
+void UNOGame::drawCardFace(const Card& card, int x, int y, bool highlight, bool legal) {
+    string sym = card.toString();
+    string content = centerString(sym);
+    int fg = card.getColorCode();
+    int bg = highlight ? BG_YELLOW : BG_DEFAULT;
+    int style = legal ? TS_UNDERLINE : TS_NONE;
+    mvc(x, y);   clrtxt("     ", DEFAULT);
+    mvc(x, y+1); clrtxt(content.c_str(), fg, bg, style);
+    mvc(x, y+2); clrtxt("     ", DEFAULT);
+}
+
+void UNOGame::updateUI() {
+    int n = players.size();
+    int topY = 2, bottomY = termHeight - 4, leftX = 2, rightX = termWidth - 12;
+    Card topCard = discardPile.back();
+    for (int i = 0; i < n; ++i) {
+        int x, y;
+        if (i == 0) { y = bottomY; x = leftX; }
+        else if (i == 1) { y = topY + 4; x = leftX; }
+        else if (i == 2) { y = topY + 4; x = rightX; }
+        else { y = topY; x = termWidth/2 - 8; }
+
+        string playerInfo = players[i].name + string(" (") + to_string(players[i].getHandSize()) + string("张)");
+        mvc(x, y-2); clrtxt("                                      ", DEFAULT);
+        mvc(x, y-2); clrtxt(playerInfo.c_str(), (i == currentPlayer) ? GREEN : DEFAULT);
+        if (players[i].isAI) clrtxt(" [AI]", MAGENTA);
+
+        if (i == 0) {
+            mvc(leftX, bottomY);   clrtxt("                                                                                ", DEFAULT);
+            mvc(leftX, bottomY+1); clrtxt("                                                                                ", DEFAULT);
+            mvc(leftX, bottomY+2); clrtxt("                                                                                ", DEFAULT);
+            mvc(leftX, bottomY+3); clrtxt("                                                                                ", DEFAULT);
+            int startX = leftX;
+            for (size_t j = 0; j < players[0].hand.size(); ++j) {
+                int cardX = startX + j * 6;
+                if (cardX + 5 > termWidth) break;
+                bool isSelected = (j == selectedCardIndex);
+                bool isLegal = isLegalPlay(players[0].hand[j], topCard);
+                drawCardFace(players[0].hand[j], cardX, bottomY, isSelected, isLegal);
+                mvc(cardX+1, bottomY+3); clrtxt(to_string(j), DEFAULT);
+            }
+        } else {
+            int startX = x;
+            for (int k = 0; k < 10; ++k) {
+                mvc(startX + k * 6, y);   clrtxt("     ", DEFAULT);
+                mvc(startX + k * 6, y+1); clrtxt("     ", DEFAULT);
+                mvc(startX + k * 6, y+2); clrtxt("     ", DEFAULT);
+            }
+            for (int k = 0; k < min(8, players[i].getHandSize()); ++k)
+                drawCardBack(startX + k * 6, y);
+            if (players[i].getHandSize() > 8) {
+                mvc(startX + 8*6, y+1); clrtxt("...", DEFAULT);
+            }
+        }
+    }
+
+    if (!discardPile.empty() && (firstDraw || !(lastTopCard == discardPile.back()))) {
+        int centerX = termWidth / 2 - 7, centerY = termHeight / 2 - 2;
+        for (int row = 0; row < 3; ++row) { mvc(centerX, centerY+row); clrtxt("          ", DEFAULT); }
+        drawCardFace(discardPile.back(), centerX, centerY, false, false);
+        lastTopCard = discardPile.back();
+    }
+
+    if (firstDraw || lastDrawPileSize != (int)drawPile.size()) {
+        int centerX = termWidth / 2 - 7, centerY = termHeight / 2 - 2;
+        mvc(centerX, centerY+5); clrtxt("          ", DEFAULT);
+        mvc(centerX, centerY+5);
+        if (!drawPile.empty()) drawCardBack(centerX, centerY+5);
+        else clrtxt("(空)", DEFAULT);
+        lastDrawPileSize = drawPile.size();
+    }
+
+    int dirX = termWidth-15, dirY = termHeight/2;
+    mvc(dirX, dirY); clrtxt("出牌方向: ", CYAN);
+    string dirText = (direction == 1) ? string("顺时针 →") : string("逆时针 ←");
+    clrtxt(dirText.c_str(), YELLOW);
+
+    firstDraw = false;
+}
+
+void UNOGame::drawMessage(const string& msg, int color) {
+    int msgY = termHeight - 2;
+    mvc(2, msgY); clrtxt("                                                                                ", DEFAULT, BG_DEFAULT);
+    mvc(2, msgY); clrtxt(msg.c_str(), color);
+}
+
+void UNOGame::clearMessageArea() { drawMessage("", DEFAULT); }
 
 void UNOGame::run() {
+    drawFullUI();
     while (!gameOver) {
         playTurn();
         if (gameOver) break;
-        if (players[currentPlayer].isAI) {
-            this_thread::sleep_for(chrono::milliseconds(800));
-        }
+        if (players[currentPlayer].isAI) this_thread::sleep_for(chrono::milliseconds(600));
     }
-    drawUI();
-    clrtxt("\n游戏结束！胜利者是: ", YELLOW, BG_BLACK, TS_BOLD);
-    clrtxt(players[winnerIndex].name, GREEN, BG_BLACK, TS_BOLD);
-    cout << endl;
-    clrtxt("按回车键退出...", DEFAULT);
-    cin.ignore();
-    cin.get();
+    string victoryMsg = string("游戏结束！胜利者是: ") + players[winnerIndex].name;
+    drawMessage(victoryMsg, GREEN);
+    mvc(2, termHeight-1); clrtxt("按回车键退出...", DEFAULT);
+    cin.ignore(); cin.get();
 }
 
 int main() {
 #ifdef _WIN32
-    SetConsoleOutputCP(65001);  // 设置控制台输出代码页为UTF-8
+    SetConsoleOutputCP(65001);
 #endif
-    setup();   // 启用控制台虚拟终端处理（Windows）
-    hc();      // 隐藏光标
-    UNOGame game;
-    game.run();
-    sc();      // 恢复光标
+    setup(); hc(); UNOGame game; game.run(); sc();
     return 0;
 }
