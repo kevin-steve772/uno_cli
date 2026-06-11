@@ -23,11 +23,11 @@ struct Card {
     Card(CardColor c = COLOR_NONE, CardType t = NUMBER, int n = 0) : color(c), type(t), number(n) {}
     string toString() const {
         if (type == NUMBER) return to_string(number);
-        else if (type == SKIP) return "S";
-        else if (type == REVERSE) return "R";
+        else if (type == SKIP) return "→";
+        else if (type == REVERSE) return "↻";
         else if (type == DRAW_TWO) return "+2";
-        else if (type == WILD) return "WD";
-        else if (type == WILD_DRAW_FOUR) return "W+4";
+        else if (type == WILD) return "⫶";
+        else if (type == WILD_DRAW_FOUR) return "+4";
         return "?";
     }
     int getColorCode() const {
