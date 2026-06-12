@@ -401,32 +401,14 @@ int UNOGame::findFirstLegalCardIndex() {
 
 void UNOGame::moveSelectionLeft() {
     if (players[0].hand.empty()) return;
-    int orig = selectedCardIndex, newIdx = selectedCardIndex;
-    Card topCard = discardPile.back();
-    do {
-        newIdx = (newIdx - 1 + (int)players[0].hand.size()) % players[0].hand.size();
-        if (newIdx == orig) break;
-        if (isLegalPlay(players[0].hand[newIdx], topCard)) {
-            selectedCardIndex = newIdx;
-            updateUI();
-            return;
-        }
-    } while (newIdx != orig);
+    selectedCardIndex = (selectedCardIndex - 1 + (int)players[0].hand.size()) % players[0].hand.size();
+    updateUI();
 }
 
 void UNOGame::moveSelectionRight() {
     if (players[0].hand.empty()) return;
-    int orig = selectedCardIndex, newIdx = selectedCardIndex;
-    Card topCard = discardPile.back();
-    do {
-        newIdx = (newIdx + 1) % players[0].hand.size();
-        if (newIdx == orig) break;
-        if (isLegalPlay(players[0].hand[newIdx], topCard)) {
-            selectedCardIndex = newIdx;
-            updateUI();
-            return;
-        }
-    } while (newIdx != orig);
+    selectedCardIndex = (selectedCardIndex + 1) % (int)players[0].hand.size();
+    updateUI();
 }
 
 // 处理人类玩家的出牌/摸牌
