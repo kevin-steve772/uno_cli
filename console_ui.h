@@ -34,7 +34,8 @@ enum BgColor {
     BG_BLUE    =44,
     BG_MAGENTA =45,
     BG_CYAN    =46,
-    BG_WHITE   =47
+    BG_WHITE   =47,
+    BG_GRAY    =100
 };
 
 enum TextStyle {

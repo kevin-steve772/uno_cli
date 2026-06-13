@@ -12,8 +12,19 @@
 #include <conio.h>
 #include <sstream>
 #include <limits>
+#include <map>
+#include <cstdint>
+
+#ifdef _WIN32
+#define _CRT_SECURE_NO_WARNINGS
+#endif
 
 using namespace std;
+
+// 临时定义 BG_GRAY（如果 console_ui.h 中没有）
+#ifndef BG_GRAY
+#define BG_GRAY 47
+#endif
 
 enum CardColor { COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_NONE };
 enum CardType { NUMBER, SKIP, REVERSE, DRAW_TWO, WILD, WILD_DRAW_FOUR };
@@ -71,8 +82,12 @@ private:
     int lastDrawPileSize;
     bool firstDraw;
     int selectedCardIndex;
-    int lastSelectedIndex;   // 新增：上一次选中的卡片索引，用于轻量刷新
+    int lastSelectedIndex;
     bool waitingForHumanInput;
+    
+    // 作弊模式相关
+    int slashKeyCount;
+    chrono::steady_clock::time_point lastSlashTime;
 
 public:
     UNOGame();
@@ -95,7 +110,7 @@ private:
     bool playTurn();
     void drawFullUI();
     void updateUI();
-    void updateSelection(int oldIdx, int newIdx);  // 新增：仅刷新选中变化
+    void updateSelection(int oldIdx, int newIdx);
     void drawBorder();
     void drawMessage(const string& msg, int color = YELLOW);
     void clearMessageArea();
@@ -106,16 +121,32 @@ private:
         if (sym.size() == 1) return string("  ") + sym + string("  ");
         else return string(" ") + sym + string("  ");
     }
+    
+    // 作弊模式函数
+    void showCommandBox();
+    void executeCommand(const string& cmd);
 };
 
-UNOGame::UNOGame() : lastCurrentPlayer(-1), lastDrawPileSize(-1), firstDraw(true), selectedCardIndex(0), lastSelectedIndex(-1), waitingForHumanInput(false) {
+UNOGame::UNOGame() : lastCurrentPlayer(-1), lastDrawPileSize(-1), firstDraw(true), selectedCardIndex(0), lastSelectedIndex(-1), waitingForHumanInput(false),
+                     slashKeyCount(0), lastSlashTime(chrono::steady_clock::now()) {
     srand(time(nullptr));
     setupPlayers();
     initGame();
 }
 
 void UNOGame::setupPlayers() {
+    mvc(termw()/2-8,termh()/2-5);
+    clrtxt("#   # #   #  ###", CYAN);
+    mvc(termw()/2-8,termh()/2-4);
+    clrtxt("#   # ##  # #   #", CYAN);
+    mvc(termw()/2-8,termh()/2-3);
+    clrtxt("#   # # # # #   #", CYAN);
+    mvc(termw()/2-8,termh()/2-2);
+    clrtxt("#   # #  ## #   #", CYAN);
+    mvc(termw()/2-8,termh()/2-1);
+    clrtxt(" ###  #   #  ###", CYAN);
     string playerName;
+    mvc(termw()/2-8,termh()/2);
     clrtxt("请输入你的名字: ", CYAN);
     getline(cin, playerName);
     if (playerName.empty()) playerName = "玩家";
@@ -123,11 +154,14 @@ void UNOGame::setupPlayers() {
     
     int aiCount;
     while (true) {
+        mvc(termw()/2-12,termh()/2);
         clrtxt("请输入AI玩家数量 (1~3): ", CYAN);
         if (cin >> aiCount && aiCount >= 1 && aiCount <= 3) break;
         cin.clear();
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
-        clrtxt("输入无效，请输入1到3之间的整数。\n", RED);
+        mvc(termw()/2-10,termh()/2);
+        clrtxt("请输入1到3之间的整数。\n", RED);
+        this_thread::sleep_for(chrono::milliseconds(800));
     }
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
     
@@ -261,11 +295,11 @@ CardColor UNOGame::chooseWildColor() {
         CardColor colors[] = {COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW};
         return colors[maxIdx];
     } else {
-        drawMessage(string("请选择新颜色: 0-红, 1-绿, 2-蓝, 3-黄 (按数字键)"), YELLOW);
+        drawMessage(string("请选择新颜色 [1]红 [2]绿 [3]蓝 [4]黄"), YELLOW);
         int choice;
         while (true) {
             char ch = _getch();
-            if (ch >= '0' && ch <= '3') { choice = ch - '0'; break; }
+            if (ch >= '1' && ch <= '4') { choice = ch - '1'; break; }
         }
         CardColor colors[] = {COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW};
         clearMessageArea();
@@ -330,12 +364,35 @@ void UNOGame::moveSelectionRight() {
 void UNOGame::handleHumanTurn() {
     Card topCard = discardPile.back();
     selectedCardIndex = 0;
-    lastSelectedIndex = -1;   // 确保第一次刷新正确
+    lastSelectedIndex = -1;
     waitingForHumanInput = true;
     updateUI();
-    drawMessage(string("方向键移动选中，Enter出牌，空格摸牌"), CYAN);
+    drawMessage(string("[←][→]选中 [Enter]出牌 [Space]摸牌"), CYAN);
     while (waitingForHumanInput) {
         int key = _getch();
+        
+        // 作弊模式：检测连续按 '/' 键 7 次
+        if (key == '/') {
+            auto now = chrono::steady_clock::now();
+            if (chrono::duration_cast<chrono::milliseconds>(now - lastSlashTime).count() < 500) {
+                slashKeyCount++;
+            } else {
+                slashKeyCount = 1;
+            }
+            lastSlashTime = now;
+            if (slashKeyCount >= 7) {
+                slashKeyCount = 0;
+                showCommandBox();
+                // 重新刷新界面，继续循环
+                updateUI();
+                drawMessage(string("[←][→]选中 [Enter]出牌 [Space]摸牌"), CYAN);
+            }
+            continue;
+        } else {
+            // 按了其他键，重置计数器
+            slashKeyCount = 0;
+        }
+        
         if (key == 224 || key == 0) {
             key = _getch();
             if (key == 75) moveSelectionLeft();
@@ -350,10 +407,10 @@ void UNOGame::handleHumanTurn() {
                 applyCardEffect(played);
                 waitingForHumanInput = false; return;
             } else {
-                drawMessage(string("选中的牌不能出！请选择可出的牌（有下划线的牌）。"), RED);
+                drawMessage(string("选中的牌不能出！请选择可出的牌。"), RED);
                 this_thread::sleep_for(chrono::milliseconds(800));
                 updateUI();
-                drawMessage(string("方向键移动选中，Enter出牌，空格摸牌"), CYAN);
+                drawMessage(string("[←][→]选中 [Enter]出牌 [Space]摸牌"), CYAN);
             }
         } else if (key == 32) {
             Card newCard = drawCard();
@@ -361,7 +418,7 @@ void UNOGame::handleHumanTurn() {
             drawMessage(string("你摸到了一张: ") + newCard.toString(), newCard.getColorCode());
             this_thread::sleep_for(chrono::milliseconds(800));
             if (isLegalPlay(newCard, topCard)) {
-                drawMessage(string("是否出这张牌? (Y/N)"), CYAN);
+                drawMessage(string("是否出这张牌? [Y]是 [N]否"), CYAN);
                 int confirm = _getch();
                 if (confirm == 'y' || confirm == 'Y') {
                     players[0].removeCard(players[0].hand.size() - 1);
@@ -386,7 +443,6 @@ void UNOGame::handleHumanTurn() {
     }
 }
 
-// ======================= 界面绘制 =======================
 void UNOGame::drawBorder() {
     clrtxt("+", CYAN);
     for (int i = 1; i < termWidth-1; ++i) clrtxt("-", CYAN);
@@ -408,7 +464,7 @@ void UNOGame::drawFullUI() {
     drawBorder();
     int centerX = termWidth / 2 - 7;
     int centerY = termHeight / 2 - 2;
-    mvc(centerX, centerY-1); clrtxt(" 弃牌堆 ", CYAN);
+    mvc(centerX, centerY-1); clrtxt("弃牌堆", CYAN);
     mvc(centerX, centerY+4); clrtxt("摸牌堆", CYAN);
     int n = players.size();
     int topY = 2, bottomY = termHeight - 4, leftX = 2, rightX = termWidth - 12;
@@ -442,14 +498,14 @@ void UNOGame::updateUI() {
         string sym = card.toString();
         string content = centerString(sym);
         int fg = card.getColorCode();
-        int style = legal ? TS_UNDERLINE : TS_NONE;
+        int bg = legal ? BG_DEFAULT : BG_GRAY;
         out_mvc(x, y);   out_clrtxt("     ", DEFAULT);
-        out_mvc(x, y+1); out_clrtxt(content, fg, BG_DEFAULT, style);
+        out_mvc(x, y+1); out_clrtxt(content, fg, bg);
         out_mvc(x, y+2); out_clrtxt("     ", DEFAULT);
         if (selected) {
-            out_mvc(x, y+3); out_clrtxt("───", CYAN);
+            out_mvc(x, y+2); out_clrtxt("─────", CYAN);
         } else {
-            out_mvc(x, y+3); out_clrtxt("   ", DEFAULT);
+            out_mvc(x, y+2); out_clrtxt("     ", DEFAULT);
         }
     };
     auto draw_card_back = [&](int x, int y) {
@@ -461,7 +517,7 @@ void UNOGame::updateUI() {
         out_mvc(x, y);   out_clrtxt("     ", DEFAULT);
         out_mvc(x, y+1); out_clrtxt("     ", DEFAULT);
         out_mvc(x, y+2); out_clrtxt("     ", DEFAULT);
-        out_mvc(x, y+3); out_clrtxt("   ", DEFAULT);
+        out_mvc(x, y+3); out_clrtxt("     ", DEFAULT);
     };
 
     int n = players.size();
@@ -478,20 +534,17 @@ void UNOGame::updateUI() {
         else if (i == 2) { y = topY + 4; x = rightX; }
         else { y = topY; x = termWidth/2 - 8; }
 
-        // 玩家信息行
-        string playerInfo = players[i].name + " (" + to_string(players[i].getHandSize()) + "张)";
+        string playerInfo = players[i].name + " [" + to_string(players[i].getHandSize()) + "]";
         out_mvc(x, y-2);
-        out_fixed(playerInfo, 40, (i == currentPlayer) ? GREEN : DEFAULT);
+        out_fixed(playerInfo, 40, (i == currentPlayer) ? CYAN : DEFAULT);
         if (players[i].isAI) out_clrtxt(" [AI]", MAGENTA);
 
-        if (i == 0) { // 人类玩家手牌
+        if (i == 0) {
             int maxCards = (termWidth - leftX) / 6;
             int handSize = players[0].hand.size();
-            // 清除右侧可能存在的多余卡片
             for (int k = handSize; k < maxCards; ++k) {
                 clear_card_area(leftX + k * 6, y);
             }
-            // 绘制所有手牌
             for (int j = 0; j < handSize; ++j) {
                 int cardX = leftX + j * 6;
                 if (cardX + 5 > termWidth) break;
@@ -499,22 +552,18 @@ void UNOGame::updateUI() {
                 bool isLegal = isLegalPlay(players[0].hand[j], topCard);
                 draw_card_face(players[0].hand[j], cardX, y, isSelected, isLegal);
             }
-        } else { // AI 手牌
+        } else {
             int startX = x;
             int maxDisplay = 8;
             int handSize = players[i].getHandSize();
-            // 清除右侧多余卡片位置
             for (int k = handSize; k < maxDisplay; ++k) {
                 clear_card_area(startX + k * 6, y);
             }
-            // 清除省略号位置
             clear_card_area(startX + maxDisplay * 6, y);
-            // 绘制前 min(handSize, maxDisplay) 张背面
             int drawCount = min(handSize, maxDisplay);
             for (int k = 0; k < drawCount; ++k) {
                 draw_card_back(startX + k * 6, y);
             }
-            // 如果手牌超过 maxDisplay，显示省略号
             if (handSize > maxDisplay) {
                 out_mvc(startX + maxDisplay * 6, y+1);
                 out_clrtxt("...", DEFAULT);
@@ -522,20 +571,17 @@ void UNOGame::updateUI() {
         }
     }
 
-    // 弃牌堆
     if (!discardPile.empty()) {
         int centerX = termWidth / 2 - 7, centerY = termHeight / 2 - 2;
         draw_card_face(discardPile.back(), centerX, centerY, false, false);
     }
 
-    // 摸牌堆
     int centerX = termWidth / 2 - 7, centerY = termHeight / 2 - 2;
     out_mvc(centerX, centerY+5);
     if (!drawPile.empty()) draw_card_back(centerX, centerY+5);
     else out_clrtxt("(空)", DEFAULT);
     lastDrawPileSize = drawPile.size();
 
-    // 方向指示
     int dirX = termWidth-30, dirY = termHeight/2;
     out_mvc(dirX, dirY); out_clrtxt("出牌方向: ", CYAN);
     string dirText = (direction == 1) ? "顺时针 →" : "逆时针 ←";
@@ -545,11 +591,9 @@ void UNOGame::updateUI() {
     printf("%s", oss.str().c_str());
     fflush(stdout);
     
-    // 更新上次选中的索引，用于轻量刷新
     lastSelectedIndex = selectedCardIndex;
 }
 
-// 轻量级刷新：仅重绘两张卡片（旧选中和新选中）的高亮状态
 void UNOGame::updateSelection(int oldIdx, int newIdx) {
     if (oldIdx == newIdx) return;
     if (players[0].hand.empty()) return;
@@ -566,18 +610,17 @@ void UNOGame::updateSelection(int oldIdx, int newIdx) {
         string sym = card.toString();
         string content = centerString(sym);
         int fg = card.getColorCode();
-        int style = legal ? TS_UNDERLINE : TS_NONE;
+        int bg = legal ? BG_DEFAULT : BG_GRAY;
         out_mvc(x, y);   out_clrtxt("     ", DEFAULT);
-        out_mvc(x, y+1); out_clrtxt(content, fg, BG_DEFAULT, style);
+        out_mvc(x, y+1); out_clrtxt(content, fg, bg);
         out_mvc(x, y+2); out_clrtxt("     ", DEFAULT);
         if (selected) {
-            out_mvc(x, y+3); out_clrtxt("───", CYAN);
+            out_mvc(x, y+2); out_clrtxt("─────", CYAN);
         } else {
-            out_mvc(x, y+3); out_clrtxt("   ", DEFAULT);
+            out_mvc(x, y+2); out_clrtxt("     ", DEFAULT);
         }
     };
     
-    // 计算手牌起始坐标（与 updateUI 保持一致）
     int bottomY = termHeight - 4;
     int handStartY = bottomY - 1;
     int leftX = 2;
@@ -587,13 +630,11 @@ void UNOGame::updateSelection(int oldIdx, int newIdx) {
     
     Card topCard = discardPile.back();
     
-    // 重绘旧位置的卡片（取消高亮）
     if (oldIdx >= 0 && oldIdx < (int)players[0].hand.size()) {
         int cardX = startX + oldIdx * cardWidth;
         bool isLegal = isLegalPlay(players[0].hand[oldIdx], topCard);
         draw_card_face(players[0].hand[oldIdx], cardX, y, false, isLegal);
     }
-    // 重绘新位置的卡片（高亮）
     if (newIdx >= 0 && newIdx < (int)players[0].hand.size()) {
         int cardX = startX + newIdx * cardWidth;
         bool isLegal = isLegalPlay(players[0].hand[newIdx], topCard);
@@ -614,6 +655,207 @@ void UNOGame::drawMessage(const string& msg, int color) {
 
 void UNOGame::clearMessageArea() { drawMessage("", DEFAULT); }
 
+// ======================= 作弊模式命令框 =======================
+void UNOGame::showCommandBox() {
+    int boxW = 50;
+    int boxH = 5;
+    int startX = termWidth / 2 - boxW / 2;
+    int startY = termHeight / 2 - boxH / 2;
+    
+    // 绘制命令框背景
+    for (int i = 0; i < boxH; ++i) {
+        mvc(startX, startY + i);
+        for (int j = 0; j < boxW; ++j) {
+            if (i == 0 || i == boxH-1) {
+                if (j == 0) clrtxt("+", CYAN);
+                else if (j == boxW-1) clrtxt("+", CYAN);
+                else clrtxt("-", CYAN);
+            } else {
+                if (j == 0) clrtxt("|", CYAN);
+                else if (j == boxW-1) clrtxt("|", CYAN);
+                else clrtxt(" ", DEFAULT);
+            }
+        }
+    }
+    mvc(startX + 2, startY + 1);
+    clrtxt("===== 作弊控制台 =====", YELLOW);
+    mvc(startX + 2, startY + 2);
+    clrtxt("输入命令 (ESC取消): ", CYAN);
+    
+    string input;
+    int cursorX = startX + 22;
+    int cursorY = startY + 2;
+    mvc(cursorX, cursorY);
+    
+    // 辅助函数：清除命令框区域（用空格覆盖）
+    auto clearBox = [&]() {
+        for (int i = 0; i < boxH; ++i) {
+            mvc(startX, startY + i);
+            for (int j = 0; j < boxW; ++j) {
+                clrtxt(" ", DEFAULT);
+            }
+        }
+    };
+    
+    while (true) {
+        int ch = _getch();
+        if (ch == 27) { // ESC 取消
+            clearBox();      // 完全擦除命令框
+            break;
+        } else if (ch == 13) { // Enter 执行
+            if (!input.empty()) {
+                executeCommand(input);
+            }
+            clearBox();      // 完全擦除命令框
+            break;
+        } else if (ch == 8 || ch == 127) { // 退格
+            if (!input.empty()) {
+                input.pop_back();
+                mvc(cursorX + (int)input.size(), cursorY);
+                clrtxt(" ", DEFAULT);
+                mvc(cursorX + (int)input.size(), cursorY);
+            }
+        } else if (ch >= 32 && ch <= 126) { // 可打印字符
+            input.push_back(static_cast<char>(ch));
+            char temp[2] = {static_cast<char>(ch), '\0'};
+            mvc(cursorX + (int)input.size() - 1, cursorY);
+            clrtxt(temp, WHITE);
+        }
+    }
+    
+    // 刷新整个游戏界面（确保游戏元素完整显示）
+    updateUI();
+}
+
+void UNOGame::executeCommand(const string& cmd) {
+    // 解析命令
+    istringstream iss(cmd);
+    string command;
+    iss >> command;
+    transform(command.begin(), command.end(), command.begin(), ::tolower);
+    
+    if (command == "hand") {
+        // 显示所有玩家手牌（调试输出到消息区，分条显示）
+        for (size_t i = 0; i < players.size(); ++i) {
+            string msg = players[i].name + " 的手牌: ";
+            for (const auto& card : players[i].hand) {
+                msg += card.toString() + " ";
+            }
+            drawMessage(msg, CYAN);
+            this_thread::sleep_for(chrono::milliseconds(1000));
+        }
+        this_thread::sleep_for(chrono::milliseconds(1500));
+        clearMessageArea();
+    }
+    else if (command == "add") {
+        string colorStr, typeStr;
+        iss >> colorStr >> typeStr;
+        if (colorStr.empty()) {
+            drawMessage("用法: add <颜色> <点数或类型>", RED);
+            this_thread::sleep_for(chrono::milliseconds(1500));
+            clearMessageArea();
+            return;
+        }
+        CardColor color;
+        string colLower = colorStr;
+        transform(colLower.begin(), colLower.end(), colLower.begin(), ::tolower);
+        if (colLower == "red") color = COLOR_RED;
+        else if (colLower == "green") color = COLOR_GREEN;
+        else if (colLower == "blue") color = COLOR_BLUE;
+        else if (colLower == "yellow") color = COLOR_YELLOW;
+        else {
+            drawMessage("颜色必须是 red/green/blue/yellow", RED);
+            this_thread::sleep_for(chrono::milliseconds(1500));
+            clearMessageArea();
+            return;
+        }
+        
+        Card newCard;
+        if (typeStr == "wild") {
+            newCard = Card(COLOR_NONE, WILD);
+        } else if (typeStr == "+4" || typeStr == "wild+4") {
+            newCard = Card(COLOR_NONE, WILD_DRAW_FOUR);
+        } else if (typeStr == "skip") {
+            newCard = Card(color, SKIP);
+        } else if (typeStr == "reverse") {
+            newCard = Card(color, REVERSE);
+        } else if (typeStr == "+2") {
+            newCard = Card(color, DRAW_TWO);
+        } else {
+            // 数字牌
+            int num = atoi(typeStr.c_str());
+            if (num >= 0 && num <= 9) {
+                newCard = Card(color, NUMBER, num);
+            } else {
+                drawMessage("无效的牌型", RED);
+                this_thread::sleep_for(chrono::milliseconds(1500));
+                clearMessageArea();
+                return;
+            }
+        }
+        players[currentPlayer].addCard(newCard);
+        drawMessage(string("已添加: ") + newCard.toString(), GREEN);
+        this_thread::sleep_for(chrono::milliseconds(1500));
+        clearMessageArea();
+    }
+    else if (command == "skip") {
+        currentPlayer = getNextPlayer();
+        drawMessage("强制跳过当前玩家", YELLOW);
+        this_thread::sleep_for(chrono::milliseconds(1500));
+        clearMessageArea();
+    }
+    else if (command == "dir") {
+        direction *= -1;
+        drawMessage("出牌方向已反转", YELLOW);
+        this_thread::sleep_for(chrono::milliseconds(1500));
+        clearMessageArea();
+    }
+    else if (command == "win") {
+        players[currentPlayer].hand.clear();
+        gameOver = true;
+        winnerIndex = currentPlayer;
+        drawMessage(string("强制胜利：") + players[currentPlayer].name, GREEN);
+        this_thread::sleep_for(chrono::milliseconds(1500));
+        clearMessageArea();
+        waitingForHumanInput = false; // 退出人类回合循环
+    }
+    else if (command == "reveal") {
+        for (size_t i = 1; i < players.size(); ++i) {
+            if (players[i].isAI) {
+                string msg = players[i].name + " 的手牌: ";
+                for (const auto& card : players[i].hand) {
+                    msg += card.toString() + " ";
+                }
+                drawMessage(msg, MAGENTA);
+                this_thread::sleep_for(chrono::milliseconds(1000));
+            }
+        }
+        this_thread::sleep_for(chrono::milliseconds(1500));
+        clearMessageArea();
+    }
+    else if (command == "draw") {
+        int count;
+        iss >> count;
+        if (count <= 0 || count > 20) count = 1;
+        for (int i = 0; i < count; ++i) {
+            players[currentPlayer].addCard(drawCard());
+        }
+        drawMessage(string("已摸 ") + to_string(count) + " 张牌", CYAN);
+        this_thread::sleep_for(chrono::milliseconds(1500));
+        clearMessageArea();
+    }
+    else {
+        drawMessage("未知命令。可用: hand, add, skip, dir, win, reveal, draw", RED);
+        this_thread::sleep_for(chrono::milliseconds(2000));
+        clearMessageArea();
+    }
+    
+    // 如果游戏未结束且命令可能改变了手牌或状态，刷新界面
+    if (!gameOver) {
+        updateUI();
+    }
+}
+
 void UNOGame::run() {
     drawFullUI();
     while (!gameOver) {
@@ -621,9 +863,11 @@ void UNOGame::run() {
         if (gameOver) break;
         if (players[currentPlayer].isAI) this_thread::sleep_for(chrono::milliseconds(600));
     }
+    mvc(termw()/2-8, termh()/2);
     string victoryMsg = string("游戏结束！胜利者是: ") + players[winnerIndex].name;
-    drawMessage(victoryMsg, GREEN);
-    mvc(2, termHeight-1); clrtxt("按回车键退出...", DEFAULT);
+    clrtxt(victoryMsg, GREEN);
+    mvc(termw()/2-8, termh()/2+1);
+    clrtxt("[Enter]退出", DEFAULT);
     cin.ignore(); cin.get();
 }
 
