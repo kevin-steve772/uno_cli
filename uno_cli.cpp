@@ -21,9 +21,8 @@
 
 using namespace std;
 
-// 临时定义 BG_GRAY（如果 console_ui.h 中没有）
 #ifndef BG_GRAY
-#define BG_GRAY 47
+#define BG_GRAY 100
 #endif
 
 enum CardColor { COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_NONE };
@@ -85,7 +84,6 @@ private:
     int lastSelectedIndex;
     bool waitingForHumanInput;
     
-    // 作弊模式相关
     int slashKeyCount;
     chrono::steady_clock::time_point lastSlashTime;
 
@@ -122,7 +120,6 @@ private:
         else return string(" ") + sym + string("  ");
     }
     
-    // 作弊模式函数
     void showCommandBox();
     void executeCommand(const string& cmd);
 };
@@ -371,7 +368,6 @@ void UNOGame::handleHumanTurn() {
     while (waitingForHumanInput) {
         int key = _getch();
         
-        // 作弊模式：检测连续按 '/' 键 7 次
         if (key == '/') {
             auto now = chrono::steady_clock::now();
             if (chrono::duration_cast<chrono::milliseconds>(now - lastSlashTime).count() < 500) {
@@ -383,13 +379,11 @@ void UNOGame::handleHumanTurn() {
             if (slashKeyCount >= 7) {
                 slashKeyCount = 0;
                 showCommandBox();
-                // 重新刷新界面，继续循环
                 updateUI();
                 drawMessage(string("[←][→]选中 [Enter]出牌 [Space]摸牌"), CYAN);
             }
             continue;
         } else {
-            // 按了其他键，重置计数器
             slashKeyCount = 0;
         }
         
@@ -444,17 +438,22 @@ void UNOGame::handleHumanTurn() {
 }
 
 void UNOGame::drawBorder() {
-    clrtxt("+", CYAN);
-    for (int i = 1; i < termWidth-1; ++i) clrtxt("-", CYAN);
-    clrtxt("+", CYAN);
-    for (int r = 1; r < termHeight-1; ++r) {
-        mvc(0, r); clrtxt("|", CYAN);
-        mvc(termWidth-1, r); clrtxt("|", CYAN);
+    mvc(0, 0);
+    clrtxt("╭", CYAN);
+    for (int i = 1; i < termWidth - 1; ++i) clrtxt("─", CYAN);
+    clrtxt("╮", CYAN);
+
+    for (int r = 1; r < termHeight - 1; ++r) {
+        mvc(0, r); clrtxt("│", CYAN);
+        mvc(termWidth - 1, r); clrtxt("│", CYAN);
     }
-    mvc(0, termHeight-1); clrtxt("+", CYAN);
-    for (int i = 1; i < termWidth-1; ++i) clrtxt("-", CYAN);
-    clrtxt("+", CYAN);
-    mvc(termWidth/2 - 4, 0);
+
+    mvc(0, termHeight - 1);
+    clrtxt("╰", CYAN);
+    for (int i = 1; i < termWidth - 1; ++i) clrtxt("─", CYAN);
+    clrtxt("╯", CYAN);
+
+    mvc(termWidth / 2 - 4, 0);
     clrtxt(" UNO ", WHITE, BG_RED, TS_BOLD);
 }
 
@@ -655,28 +654,29 @@ void UNOGame::drawMessage(const string& msg, int color) {
 
 void UNOGame::clearMessageArea() { drawMessage("", DEFAULT); }
 
-// ======================= 作弊模式命令框 =======================
 void UNOGame::showCommandBox() {
     int boxW = 50;
     int boxH = 5;
     int startX = termWidth / 2 - boxW / 2;
     int startY = termHeight / 2 - boxH / 2;
     
-    // 绘制命令框背景
-    for (int i = 0; i < boxH; ++i) {
+    mvc(startX, startY);
+    clrtxt("╭", CYAN);
+    for (int j = 1; j < boxW - 1; ++j) clrtxt("─", CYAN);
+    clrtxt("╮", CYAN);
+    
+    for (int i = 1; i <= boxH - 2; ++i) {
         mvc(startX, startY + i);
-        for (int j = 0; j < boxW; ++j) {
-            if (i == 0 || i == boxH-1) {
-                if (j == 0) clrtxt("+", CYAN);
-                else if (j == boxW-1) clrtxt("+", CYAN);
-                else clrtxt("-", CYAN);
-            } else {
-                if (j == 0) clrtxt("|", CYAN);
-                else if (j == boxW-1) clrtxt("|", CYAN);
-                else clrtxt(" ", DEFAULT);
-            }
-        }
+        clrtxt("│", CYAN);
+        for (int j = 1; j < boxW - 1; ++j) clrtxt(" ", DEFAULT);
+        clrtxt("│", CYAN);
     }
+    
+    mvc(startX, startY + boxH - 1);
+    clrtxt("╰", CYAN);
+    for (int j = 1; j < boxW - 1; ++j) clrtxt("─", CYAN);
+    clrtxt("╯", CYAN);
+    
     mvc(startX + 2, startY + 1);
     clrtxt("===== 作弊控制台 =====", YELLOW);
     mvc(startX + 2, startY + 2);
@@ -687,7 +687,6 @@ void UNOGame::showCommandBox() {
     int cursorY = startY + 2;
     mvc(cursorX, cursorY);
     
-    // 辅助函数：清除命令框区域（用空格覆盖）
     auto clearBox = [&]() {
         for (int i = 0; i < boxH; ++i) {
             mvc(startX, startY + i);
@@ -699,23 +698,23 @@ void UNOGame::showCommandBox() {
     
     while (true) {
         int ch = _getch();
-        if (ch == 27) { // ESC 取消
-            clearBox();      // 完全擦除命令框
+        if (ch == 27) {
+            clearBox();
             break;
-        } else if (ch == 13) { // Enter 执行
+        } else if (ch == 13) {
             if (!input.empty()) {
                 executeCommand(input);
             }
-            clearBox();      // 完全擦除命令框
+            clearBox();
             break;
-        } else if (ch == 8 || ch == 127) { // 退格
+        } else if (ch == 8 || ch == 127) {
             if (!input.empty()) {
                 input.pop_back();
                 mvc(cursorX + (int)input.size(), cursorY);
                 clrtxt(" ", DEFAULT);
                 mvc(cursorX + (int)input.size(), cursorY);
             }
-        } else if (ch >= 32 && ch <= 126) { // 可打印字符
+        } else if (ch >= 32 && ch <= 126) {
             input.push_back(static_cast<char>(ch));
             char temp[2] = {static_cast<char>(ch), '\0'};
             mvc(cursorX + (int)input.size() - 1, cursorY);
@@ -723,19 +722,16 @@ void UNOGame::showCommandBox() {
         }
     }
     
-    // 刷新整个游戏界面（确保游戏元素完整显示）
     updateUI();
 }
 
 void UNOGame::executeCommand(const string& cmd) {
-    // 解析命令
     istringstream iss(cmd);
     string command;
     iss >> command;
     transform(command.begin(), command.end(), command.begin(), ::tolower);
     
     if (command == "hand") {
-        // 显示所有玩家手牌（调试输出到消息区，分条显示）
         for (size_t i = 0; i < players.size(); ++i) {
             string msg = players[i].name + " 的手牌: ";
             for (const auto& card : players[i].hand) {
@@ -782,7 +778,6 @@ void UNOGame::executeCommand(const string& cmd) {
         } else if (typeStr == "+2") {
             newCard = Card(color, DRAW_TWO);
         } else {
-            // 数字牌
             int num = atoi(typeStr.c_str());
             if (num >= 0 && num <= 9) {
                 newCard = Card(color, NUMBER, num);
@@ -817,7 +812,7 @@ void UNOGame::executeCommand(const string& cmd) {
         drawMessage(string("强制胜利：") + players[currentPlayer].name, GREEN);
         this_thread::sleep_for(chrono::milliseconds(1500));
         clearMessageArea();
-        waitingForHumanInput = false; // 退出人类回合循环
+        waitingForHumanInput = false;
     }
     else if (command == "reveal") {
         for (size_t i = 1; i < players.size(); ++i) {
@@ -850,7 +845,6 @@ void UNOGame::executeCommand(const string& cmd) {
         clearMessageArea();
     }
     
-    // 如果游戏未结束且命令可能改变了手牌或状态，刷新界面
     if (!gameOver) {
         updateUI();
     }
