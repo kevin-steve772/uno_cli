@@ -1,4 +1,3 @@
-// uno_cli.cpp - 优化版
 #include "console_ui.h"
 #include <iostream>
 #include <vector>
@@ -12,7 +11,6 @@
 #include <chrono>
 #include <limits>
 
-// ==================== 跨平台键盘输入 ====================
 #ifdef _WIN32
     #include <conio.h>
     inline int my_getch() { return _getch(); }
@@ -150,8 +148,6 @@ private:
         else return string(" ") + sym + string("  ");
     }
 };
-
-// ------------------- 构造与初始化 -------------------
 UNOGame::UNOGame() : lastCurrentPlayer(-1), lastDrawPileSize(-1), firstDraw(true), selectedCardIndex(0), waitingForHumanInput(false) {
     setupPlayers();
     initGame();
@@ -160,7 +156,6 @@ UNOGame::UNOGame() : lastCurrentPlayer(-1), lastDrawPileSize(-1), firstDraw(true
 void UNOGame::setupPlayers() {
     string playerName;
     clrtxt("请输入你的名字: ", CYAN);
-    // 移除错误的多余 cin.ignore()
     getline(cin, playerName);
     if (playerName.empty()) playerName = "玩家";
     players.push_back(Player(playerName, false));
@@ -173,7 +168,6 @@ void UNOGame::setupPlayers() {
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
         clrtxt("输入无效，请输入1到3之间的整数。\n", RED);
     }
-    // 清理整数输入后遗留的换行符（可选，但推荐）
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
     
     for (int i = 1; i <= aiCount; ++i)
@@ -263,7 +257,6 @@ bool UNOGame::isLegalPlay(const Card& played, const Card& top) const {
     return false;
 }
 
-// 应用牌效，同时更新 currentPlayer
 void UNOGame::applyCardEffect(const Card& card) {
     int next = getNextPlayer();
     
@@ -283,7 +276,6 @@ void UNOGame::applyCardEffect(const Card& card) {
         currentPlayer = getNextPlayerAfterSkip(next);
     }
     else if (card.type == REVERSE) {
-        // 2人游戏时 REVERSE 当作 SKIP 处理
         if (players.size() == 2) {
             currentPlayer = getNextPlayerAfterSkip(next);
         } else {
@@ -291,11 +283,10 @@ void UNOGame::applyCardEffect(const Card& card) {
             currentPlayer = getNextPlayer();
         }
     }
-    else { // 普通数字牌
+    else {
         currentPlayer = next;
     }
     
-    // 边界修正
     if (currentPlayer >= (int)players.size()) currentPlayer = 0;
     if (currentPlayer < 0) currentPlayer = players.size() - 1;
 }
@@ -341,7 +332,6 @@ CardColor UNOGame::chooseWildColor() {
     }
 }
 
-// ------------------- 游戏主循环 -------------------
 bool UNOGame::playTurn() {
     Player& player = players[currentPlayer];
     Card topCard = discardPile.back();
@@ -414,7 +404,6 @@ void UNOGame::moveSelectionRight() {
     updateUI();
 }
 
-// 处理人类玩家的出牌/摸牌
 void UNOGame::handleHumanTurn() {
     Card topCard = discardPile.back();
     int firstLegal = findFirstLegalCardIndex();
@@ -430,22 +419,21 @@ void UNOGame::handleHumanTurn() {
     while (waitingForHumanInput) {
         int key = my_getch();
 #ifdef _WIN32
-        if (key == 224 || key == 0) {   // 方向键前缀
+        if (key == 224 || key == 0) {
             key = my_getch();
             if (key == 75) moveSelectionLeft();
             else if (key == 77) moveSelectionRight();
         }
 #else
-        // Linux下方向键为三个字符序列，简单处理：忽略 ESC [ 前缀
         if (key == 27) {
             if (my_getch() == 91) {
                 key = my_getch();
-                if (key == 68) moveSelectionLeft();   // 左
-                else if (key == 67) moveSelectionRight(); // 右
+                if (key == 68) moveSelectionLeft();
+                else if (key == 67) moveSelectionRight();
             }
         }
 #endif
-        else if (key == 13) { // Enter
+        else if (key == 13) {
             if (firstLegal != -1 && isLegalPlay(players[0].hand[selectedCardIndex], topCard)) {
                 Card played = players[0].hand[selectedCardIndex];
                 players[0].removeCard(selectedCardIndex);
@@ -467,7 +455,7 @@ void UNOGame::handleHumanTurn() {
                 drawMessage("方向键移动选中，Enter出牌，空格摸牌", CYAN);
             }
         }
-        else if (key == 32) { // 空格
+        else if (key == 32) {
             Card newCard = drawCard();
             players[0].addCard(newCard);
             drawMessage(string("你摸到了一张: ") + newCard.toString(), newCard.getColorCode());
@@ -507,7 +495,6 @@ void UNOGame::handleHumanTurn() {
     }
 }
 
-// ------------------- UI 绘制 -------------------
 void UNOGame::drawBorder() {
     printf("\033[2J\033[H");
     clrtxt("+", CYAN);
@@ -601,14 +588,12 @@ void UNOGame::updateUI() {
             x = termWidth/2 - 8;
         }
         
-        // 玩家信息
         string playerInfo = players[i].name + " (" + to_string(players[i].getHandSize()) + "张)";
         mvc(x, y-2); clrtxt("                                      ", DEFAULT);
         mvc(x, y-2); clrtxt(playerInfo.c_str(), (i == currentPlayer) ? GREEN : DEFAULT);
         if (players[i].isAI) clrtxt(" [AI]", MAGENTA);
         
         if (i == 0) {
-            // 清除人类手牌区域
             for (int row = 0; row < 4; ++row) {
                 mvc(leftX, y + row);
                 clrtxt("                                                                                ", DEFAULT);
@@ -624,7 +609,6 @@ void UNOGame::updateUI() {
                 clrtxt(to_string(j), DEFAULT);
             }
         } else {
-            // AI 手牌显示背面
             int startX = x;
             for (int k = 0; k < 10; ++k) {
                 mvc(startX + k * 6, y);   clrtxt("     ", DEFAULT);
@@ -639,7 +623,6 @@ void UNOGame::updateUI() {
         }
     }
     
-    // 弃牌堆
     if (!discardPile.empty() && (firstDraw || !(lastTopCard == discardPile.back()))) {
         int centerX = termWidth / 2 - 7, centerY = termHeight / 2 - 2;
         for (int row = 0; row < 3; ++row) { mvc(centerX, centerY+row); clrtxt("          ", DEFAULT); }
@@ -647,7 +630,6 @@ void UNOGame::updateUI() {
         lastTopCard = discardPile.back();
     }
     
-    // 摸牌堆
     if (firstDraw || lastDrawPileSize != (int)drawPile.size()) {
         int centerX = termWidth / 2 - 7, centerY = termHeight / 2 - 2;
         mvc(centerX, centerY+5); clrtxt("          ", DEFAULT);
@@ -657,7 +639,6 @@ void UNOGame::updateUI() {
         lastDrawPileSize = drawPile.size();
     }
     
-    // 方向指示
     int dirX = termWidth-30, dirY = termHeight/2;
     mvc(dirX, dirY); clrtxt("出牌方向: ", CYAN);
     string dirText = (direction == 1) ? "顺时针 →" : "逆时针 ←";
@@ -691,18 +672,17 @@ void UNOGame::run() {
     cin.get();
 }
 
-// ------------------- 主函数 -------------------
 int main() {
 #ifdef _WIN32
     SetConsoleOutputCP(65001);
 #else
-    init_input();      // 设置终端原始模式
+    init_input();
     atexit(restore_input);
 #endif
     setup();
-    hc();              // 隐藏光标
+    hc();
     UNOGame game;
     game.run();
-    sc();              // 恢复光标
+    sc();
     return 0;
 }
