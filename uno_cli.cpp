@@ -119,7 +119,7 @@ private:
         if (sym.size() == 1) return string("  ") + sym + string("  ");
         else return string(" ") + sym + string("  ");
     }
-    
+    void drawMessageNoErase(const string& msg, int color = YELLOW);
     void showCommandBox();
     void executeCommand(const string& cmd);
 };
@@ -142,8 +142,30 @@ void UNOGame::setupPlayers() {
     clrtxt("#   # #  ## #   #", CYAN);
     mvc(termw()/2-8,termh()/2-1);
     clrtxt(" ###  #   #  ###", CYAN);
+    mvc(1,termh()/2+3);
+    clrtxt("▬▬▬▬▬▬▬▬▬▬",DEFAULT,CYAN);
+    for(int i=1;i<=4;i++){
+        for(int j=1;j<=termw();j++){
+            mvc(j,termh()/2+3);
+            clrtxt("▬",DEFAULT,CYAN);
+        }
+        for(int j=1;j<=termw()-10;j++){
+            mvc(j,termh()/2+3);
+            cout<<" ";
+        }
+        for(int j=termw();j>=1;j--){
+            mvc(j,termh()/2+3);
+            clrtxt("▬",DEFAULT,CYAN);
+        }
+        for(int j=termw();j>=10;j--){
+            mvc(j,termh()/2+3);
+            cout<<" ";
+        }
+    }
+    mvc(1,termh()/2+3);
+    cout<<"          ";
     string playerName;
-    mvc(termw()/2-8,termh()/2);
+    mvc(termw()/2-8,termh()/2+3);
     clrtxt("请输入你的名字: ", CYAN);
     getline(cin, playerName);
     if (playerName.empty()) playerName = "玩家";
@@ -151,12 +173,12 @@ void UNOGame::setupPlayers() {
     
     int aiCount;
     while (true) {
-        mvc(termw()/2-12,termh()/2);
+        mvc(termw()/2-12,termh()/2+3);
         clrtxt("请输入AI玩家数量 (1~3): ", CYAN);
         if (cin >> aiCount && aiCount >= 1 && aiCount <= 3) break;
         cin.clear();
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
-        mvc(termw()/2-10,termh()/2);
+        mvc(termw()/2-10,termh()/2+3);
         clrtxt("请输入1到3之间的整数。\n", RED);
         this_thread::sleep_for(chrono::milliseconds(800));
     }
@@ -309,8 +331,27 @@ bool UNOGame::playTurn() {
     Card topCard = discardPile.back();
     updateUI();
     if (player.isAI) {
-        drawMessage(player.name + string(" (AI) 正在思考..."), CYAN);
-        this_thread::sleep_for(chrono::milliseconds(800));
+        drawMessage("AI思考中...", DEFAULT);
+        mvc(15,termh());
+        clrtxt("▬▬▬▬▬▬▬▬▬▬",DEFAULT,CYAN);
+        for(int i=1;i<=2;i++){
+            for(int j=15;j<=termw();j++){
+                mvc(j,termh());
+                clrtxt("▬",DEFAULT,CYAN);
+            }
+            for(int j=15;j<=termw()-10;j++){
+                mvc(j,termh());
+                cout<<" ";
+            }
+            for(int j=termw();j>=15;j--){
+                mvc(j,termh());
+                clrtxt("▬",DEFAULT,CYAN);
+            }
+            for(int j=termw();j>=25;j--){
+                mvc(j,termh());
+                cout<<" ";
+            }
+        }
         for (size_t i = 0; i < player.hand.size(); ++i) {
             if (isLegalPlay(player.hand[i], topCard)) {
                 Card played = player.hand[i];
@@ -649,6 +690,11 @@ void UNOGame::updateSelection(int oldIdx, int newIdx) {
 void UNOGame::drawMessage(const string& msg, int color) {
     int msgY = termHeight;
     mvc(2, msgY); clrtxt("                                                                                ", DEFAULT, BG_DEFAULT);
+    mvc(2, msgY); clrtxt(msg.c_str(), color);
+}
+
+void UNOGame::drawMessageNoErase(const string& msg, int color) {
+    int msgY = termHeight;
     mvc(2, msgY); clrtxt(msg.c_str(), color);
 }
 
