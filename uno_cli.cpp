@@ -160,7 +160,7 @@ UNOGame::UNOGame() : lastCurrentPlayer(-1), lastDrawPileSize(-1), firstDraw(true
 void UNOGame::setupPlayers() {
     string playerName;
     clrtxt("请输入你的名字: ", CYAN);
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    // 移除错误的多余 cin.ignore()
     getline(cin, playerName);
     if (playerName.empty()) playerName = "玩家";
     players.push_back(Player(playerName, false));
@@ -173,6 +173,9 @@ void UNOGame::setupPlayers() {
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
         clrtxt("输入无效，请输入1到3之间的整数。\n", RED);
     }
+    // 清理整数输入后遗留的换行符（可选，但推荐）
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    
     for (int i = 1; i <= aiCount; ++i)
         players.push_back(Player(string("AI_") + to_string(i), true));
 }
