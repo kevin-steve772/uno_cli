@@ -83,9 +83,11 @@ private:
     int selectedCardIndex;
     int lastSelectedIndex;
     bool waitingForHumanInput;
-    
     int slashKeyCount;
     chrono::steady_clock::time_point lastSlashTime;
+
+    // 主菜单状态
+    int currentMenuItem; // 0:新游戏, 1:选项, 2:关于
 
 public:
     UNOGame();
@@ -93,8 +95,12 @@ public:
 
 private:
     void clearScreen();
+    void showStartupAnimation();
+    void showMainMenu();
+    void clearRightArea();          // 仅清除右侧内容区域
+    void updateRightContent();      // 根据 currentMenuItem 重绘右侧内容
+    void drawMenuUI();              // 首次绘制整个菜单界面（左侧+边框+右侧）
     void setupPlayers();
-    void mainPage();
     void initGame();
     void createDeck();
     void shuffleDeck();
@@ -127,89 +133,315 @@ private:
 };
 
 UNOGame::UNOGame() : lastCurrentPlayer(-1), lastDrawPileSize(-1), firstDraw(true), selectedCardIndex(0), lastSelectedIndex(-1), waitingForHumanInput(false),
-                     slashKeyCount(0), lastSlashTime(chrono::steady_clock::now()) {
+                     slashKeyCount(0), lastSlashTime(chrono::steady_clock::now()), currentMenuItem(0) {
     srand(time(nullptr));
-    setupPlayers();
-    initGame();
 }
 
-void UNOGame::clearScreen(){
-    mvc(1,1);
-    for(int i=1;i<=termh();i++){
-        for(int j=1;j<=termw();j++){
-            cout<<" ";
+void UNOGame::clearScreen() {
+    mvc(1, 1);
+    for (int i = 1; i <= termHeight; ++i) {
+        for (int j = 1; j <= termWidth; ++j) cout << " ";
+        cout << endl;
+    }
+    mvc(1, 1);
+}
+
+void UNOGame::showStartupAnimation() {
+    termHeight = termh();
+    termWidth = termw();
+    clearScreen();
+    int midX = termWidth / 2;
+    int midY = termHeight / 2;
+
+    mvc(midX - 8, midY - 5);
+    clrtxt("#   # #   #  ###", CYAN, TS_BOLD);
+    mvc(midX - 8, midY - 4);
+    clrtxt("#   # ##  # #   #", CYAN, TS_BOLD);
+    mvc(midX - 8, midY - 3);
+    clrtxt("#   # # # # #   #", CYAN, TS_BOLD);
+    mvc(midX - 8, midY - 2);
+    clrtxt("#   # #  ## #   #", CYAN, TS_BOLD);
+    mvc(midX - 8, midY - 1);
+    clrtxt(" ###  #   #  ###", CYAN, TS_BOLD);
+
+    int lineY = midY + 3;
+    mvc(1, lineY);
+    clrtxt("▬▬▬▬▬▬▬▬▬▬", DEFAULT, CYAN);
+    for (int i = 1; i <= 4; ++i) {
+        for (int j = 1; j <= termWidth; ++j) {
+            mvc(j, lineY);
+            clrtxt("▬", DEFAULT, CYAN);
         }
-        cout<<endl;
+        for (int j = 1; j <= termWidth - 10; ++j) {
+            mvc(j, lineY);
+            cout << " ";
+        }
+        for (int j = termWidth; j >= 1; --j) {
+            mvc(j, lineY);
+            clrtxt("▬", DEFAULT, CYAN);
+        }
+        for (int j = termWidth; j >= 10; --j) {
+            mvc(j, lineY);
+            cout << " ";
+        }
+    }
+    clearScreen();
+}
+
+// 仅清除右侧内容区域（保留左侧和边框）
+void UNOGame::clearRightArea() {
+    int leftWidth = 30;
+    int rightStartX = leftWidth + 2;
+    int startY = 4;
+    int endY = termHeight - 2;
+    for (int y = startY; y < endY; ++y) {
+        mvc(rightStartX + 2, y);
+        printf("\033[K");   // 清除到行尾
     }
 }
 
-void UNOGame::mainPage(){
-    UNOGame::clearScreen();
-    mvc(1,1);
-    clrtxt("UNO CLI\n", CYAN, TS_BOLD);
-    clrtxt(" 新游戏[N]\n", WHITE);
-    clrtxt(" 选项[O]\n", WHITE);
-    mvc(1,termh()-1);
-    clrtxt(" 关于[A]\n", WHITE);
-    
+// 根据 currentMenuItem 重绘右侧内容
+void UNOGame::updateRightContent() {
+    clearRightArea();
+    int rightStartX = 32;
+    int startY = 5;
+    if (currentMenuItem == 0) {
+        mvc(rightStartX + 2, startY);
+        clrtxt("新建游戏", YELLOW, TS_BOLD);
+        mvc(rightStartX + 2, startY + 2);
+        clrtxt("按 [Enter] 开始新的 UNO 游戏", WHITE);
+        mvc(rightStartX + 2, startY + 4);
+        clrtxt("游戏规则：", CYAN);
+        mvc(rightStartX + 4, startY + 5);
+        clrtxt("- 每名玩家起始 7 张牌", WHITE);
+        mvc(rightStartX + 4, startY + 6);
+        clrtxt("- 出牌需匹配颜色或数字/符号", WHITE);
+        mvc(rightStartX + 4, startY + 7);
+        clrtxt("- 功能牌：跳过、反转、+2、万能、+4", WHITE);
+        mvc(rightStartX + 4, startY + 8);
+        clrtxt("- 最先出完手牌者获胜", WHITE);
+    } else if (currentMenuItem == 1) {
+        mvc(rightStartX + 2, startY);
+        clrtxt("选项", YELLOW, TS_BOLD);
+        mvc(rightStartX + 2, startY + 2);
+        clrtxt("此版本暂无更多设置", WHITE);
+        mvc(rightStartX + 2, startY + 4);
+        clrtxt("作弊命令（游戏中连续按 7 次 / 开启控制台）：", CYAN);
+        mvc(rightStartX + 4, startY + 5);
+        clrtxt("- hand : 显示所有玩家手牌", WHITE);
+        mvc(rightStartX + 4, startY + 6);
+        clrtxt("- add <颜色> <牌> : 添加指定牌", WHITE);
+        mvc(rightStartX + 4, startY + 7);
+        clrtxt("- skip : 跳过当前玩家", WHITE);
+        mvc(rightStartX + 4, startY + 8);
+        clrtxt("- dir : 反转出牌方向", WHITE);
+        mvc(rightStartX + 4, startY + 9);
+        clrtxt("- win : 强制胜利", WHITE);
+        mvc(rightStartX + 4, startY + 10);
+        clrtxt("- reveal : 显示 AI 手牌", WHITE);
+        mvc(rightStartX + 4, startY + 11);
+        clrtxt("- draw <数量> : 摸牌", WHITE);
+    } else if (currentMenuItem == 2) {
+        mvc(rightStartX + 2, startY);
+        clrtxt("关于", YELLOW, TS_BOLD);
+        mvc(rightStartX + 2, startY + 2);
+        clrtxt("UNO CLI", WHITE);
+        mvc(rightStartX + 2, startY + 3);
+        clrtxt("使用 C++ 编写", WHITE);
+        mvc(rightStartX + 2, startY + 4);
+        clrtxt("作者: kevin-steve772", WHITE);
+        mvc(rightStartX + 2, startY + 5);
+        clrtxt("版本: 1.2.0", WHITE);
+        mvc(rightStartX + 2, startY + 7);
+        clrtxt("GitHub：https://github.com/kevin-steve772/uno_cli", WHITE);
+    }
+}
+
+// 首次完整绘制菜单（左侧导航栏+右侧边框），之后切换只调用 updateRightContent
+void UNOGame::drawMenuUI() {
+    termHeight = termh();
+    termWidth = termw();
+
+    // 左侧背景（黑色背景）
+    int leftWidth = 30;
+    for (int i = 1; i <= termHeight; ++i) {
+        mvc(1, i);
+        for (int j = 1; j <= leftWidth; ++j) clrtxt(" ", DEFAULT, BG_BLACK);
+    }
+
+    // 艺术字 (UNO)
+    int artStartY = 3;
+    mvc(5, artStartY);
+    clrtxt("#   # #   #  ###", CYAN, TS_BOLD);
+    mvc(5, artStartY + 1);
+    clrtxt("#   # ##  # #   #", CYAN, TS_BOLD);
+    mvc(5, artStartY + 2);
+    clrtxt("#   # # # # #   #", CYAN, TS_BOLD);
+    mvc(5, artStartY + 3);
+    clrtxt("#   # #  ## #   #", CYAN, TS_BOLD);
+    mvc(5, artStartY + 4);
+    clrtxt(" ###  #   #  ###", CYAN, TS_BOLD);
+
+    // 菜单选项
+    int menuStartY = artStartY + 8;
+    string menuItems[3] = { "新建游戏", "[O] 选项", "[A] 关于" };
+    for (int i = 0; i < 3; ++i) {
+        mvc(3, menuStartY + i * 2);
+        if (i == currentMenuItem) {
+            clrtxt("| ", CYAN);
+            clrtxt(menuItems[i].c_str(), CYAN, TS_BOLD);
+        } else {
+            clrtxt("  ", DEFAULT);
+            clrtxt(menuItems[i].c_str(), WHITE);
+        }
+    }
+
+    updateRightContent();   // 首次绘制右侧内容
+}
+
+void UNOGame::showMainMenu() {
+    drawMenuUI();
+    while (true) {
+        int key = _getch();
+        if (key == 224 || key == 0) {
+            key = _getch();
+            if (key == 72) { // 上
+                int oldItem = currentMenuItem;
+                currentMenuItem = (currentMenuItem - 1 + 3) % 3;
+                if (oldItem != currentMenuItem) {
+                    // 更新左侧高亮
+                    int artStartY = 3;
+                    int menuStartY = artStartY + 8;
+                    string menuItems[3] = { "新建游戏", "[O] 选项", "[A] 关于" };
+                    // 清除旧高亮
+                    mvc(3, menuStartY + oldItem * 2);
+                    clrtxt("  ", DEFAULT);
+                    clrtxt(menuItems[oldItem].c_str(), WHITE);
+                    // 绘制新高亮
+                    mvc(3, menuStartY + currentMenuItem * 2);
+                    clrtxt("| ", CYAN);
+                    clrtxt(menuItems[currentMenuItem].c_str(), CYAN, TS_BOLD);
+                    // 更新右侧内容
+                    updateRightContent();
+                }
+            } else if (key == 80) { // 下
+                int oldItem = currentMenuItem;
+                currentMenuItem = (currentMenuItem + 1) % 3;
+                if (oldItem != currentMenuItem) {
+                    int artStartY = 3;
+                    int menuStartY = artStartY + 8;
+                    string menuItems[3] = { "新建游戏", "[O] 选项", "[A] 关于" };
+                    mvc(3, menuStartY + oldItem * 2);
+                    clrtxt("  ", DEFAULT);
+                    clrtxt(menuItems[oldItem].c_str(), WHITE);
+                    mvc(3, menuStartY + currentMenuItem * 2);
+                    clrtxt("| ", CYAN);
+                    clrtxt(menuItems[currentMenuItem].c_str(), CYAN, TS_BOLD);
+                    updateRightContent();
+                }
+            }
+        } else if (key == 13) { // Enter
+            if (currentMenuItem == 0) {
+                // 新游戏
+                setupPlayers();
+                initGame();
+                drawFullUI();
+                while (!gameOver) {
+                    playTurn();
+                    if (gameOver) break;
+                    if (players[currentPlayer].isAI) this_thread::sleep_for(chrono::milliseconds(600));
+                }
+                clearScreen();
+                int midX = termw() / 2;
+                int midY = termh() / 2;
+                string victoryMsg = string("游戏结束！胜利者是: ") + players[winnerIndex].name;
+                mvc(midX - (int)victoryMsg.size()/2, midY);
+                clrtxt(victoryMsg, GREEN);
+                mvc(midX - 15, midY + 2);
+                clrtxt("按 [Enter] 返回主菜单", DEFAULT);
+                cin.ignore(); cin.get();
+                players.clear();
+                drawPile.clear();
+                discardPile.clear();
+                gameOver = false;
+                termHeight = termh();
+                termWidth = termw();
+                drawMenuUI();  // 重新绘制菜单界面
+            }
+        } else if (key == 'o' || key == 'O') {
+            if (currentMenuItem != 1) {
+                int oldItem = currentMenuItem;
+                currentMenuItem = 1;
+                int artStartY = 3;
+                int menuStartY = artStartY + 8;
+                string menuItems[3] = { "新建游戏", "[O] 选项", "[A] 关于" };
+                mvc(3, menuStartY + oldItem * 2);
+                clrtxt("  ", DEFAULT);
+                clrtxt(menuItems[oldItem].c_str(), WHITE);
+                mvc(3, menuStartY + currentMenuItem * 2);
+                clrtxt("| ", CYAN);
+                clrtxt(menuItems[currentMenuItem].c_str(), CYAN, TS_BOLD);
+                updateRightContent();
+            }
+        } else if (key == 'a' || key == 'A') {
+            if (currentMenuItem != 2) {
+                int oldItem = currentMenuItem;
+                currentMenuItem = 2;
+                int artStartY = 3;
+                int menuStartY = artStartY + 8;
+                string menuItems[3] = { "新建游戏", "[O] 选项", "[A] 关于" };
+                mvc(3, menuStartY + oldItem * 2);
+                clrtxt("  ", DEFAULT);
+                clrtxt(menuItems[oldItem].c_str(), WHITE);
+                mvc(3, menuStartY + currentMenuItem * 2);
+                clrtxt("| ", CYAN);
+                clrtxt(menuItems[currentMenuItem].c_str(), CYAN, TS_BOLD);
+                updateRightContent();
+            }
+        } else if (key == 'q' || key == 'Q') {
+            break;
+        }
+    }
 }
 
 void UNOGame::setupPlayers() {
-    mvc(termw()/2-8,termh()/2-5);
+    clearScreen();
+    int midX = termWidth / 2;
+    int midY = termHeight / 2;
+
+    mvc(midX - 8, midY - 5);
     clrtxt("#   # #   #  ###", CYAN);
-    mvc(termw()/2-8,termh()/2-4);
+    mvc(midX - 8, midY - 4);
     clrtxt("#   # ##  # #   #", CYAN);
-    mvc(termw()/2-8,termh()/2-3);
+    mvc(midX - 8, midY - 3);
     clrtxt("#   # # # # #   #", CYAN);
-    mvc(termw()/2-8,termh()/2-2);
+    mvc(midX - 8, midY - 2);
     clrtxt("#   # #  ## #   #", CYAN);
-    mvc(termw()/2-8,termh()/2-1);
+    mvc(midX - 8, midY - 1);
     clrtxt(" ###  #   #  ###", CYAN);
-    mvc(1,termh()/2+3);
-    clrtxt("▬▬▬▬▬▬▬▬▬▬",DEFAULT,CYAN);
-    for(int i=1;i<=4;i++){
-        for(int j=1;j<=termw();j++){
-            mvc(j,termh()/2+3);
-            clrtxt("▬",DEFAULT,CYAN);
-        }
-        for(int j=1;j<=termw()-10;j++){
-            mvc(j,termh()/2+3);
-            cout<<" ";
-        }
-        for(int j=termw();j>=1;j--){
-            mvc(j,termh()/2+3);
-            clrtxt("▬",DEFAULT,CYAN);
-        }
-        for(int j=termw();j>=10;j--){
-            mvc(j,termh()/2+3);
-            cout<<" ";
-        }
-    }
-    UNOGame::mainPage();
-    mvc(1,termh()/2+3);
-    cout<<"          ";
+
     string playerName;
-    sc();
-    mvc(termw()/2-8,termh()/2+3);
+    mvc(midX - 8, midY + 3);
     clrtxt("请输入你的名字: ", CYAN);
+    sc();
     getline(cin, playerName);
     if (playerName.empty()) playerName = "玩家";
     players.push_back(Player(playerName, false));
-    
+
     int aiCount;
     while (true) {
-        mvc(termw()/2-12,termh()/2+3);
+        mvc(midX - 12, midY + 5);
         clrtxt("请输入AI玩家数量 (1~3): ", CYAN);
         if (cin >> aiCount && aiCount >= 1 && aiCount <= 3) break;
         cin.clear();
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
-        mvc(termw()/2-10,termh()/2+3);
-        clrtxt("请输入1到3之间的整数。\n", RED);
+        mvc(midX - 10, midY + 5);
+        clrtxt("请输入1到3之间的整数。", RED);
         this_thread::sleep_for(chrono::milliseconds(800));
     }
     hc();
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    
+
     for (int i = 1; i <= aiCount; ++i)
         players.push_back(Player(string("AI_") + to_string(i), true));
 }
@@ -358,26 +590,27 @@ bool UNOGame::playTurn() {
     updateUI();
     if (player.isAI) {
         drawMessage("AI思考中...", CYAN);
-        mvc(15,termh());
-        clrtxt("▬▬▬▬▬▬▬▬▬▬",DEFAULT,CYAN);
-        for(int i=1;i<=2;i++){
-            for(int j=15;j<=termw();j++){
-                mvc(j,termh());
-                clrtxt("▬",DEFAULT,CYAN);
+        mvc(15, termh());
+        clrtxt("▬▬▬▬▬▬▬▬▬▬", DEFAULT, CYAN);
+        for (int i = 1; i <= 2; ++i) {
+            for (int j = 15; j <= termWidth; ++j) {
+                mvc(j, termh());
+                clrtxt("▬", DEFAULT, CYAN);
             }
-            for(int j=15;j<=termw()-10;j++){
-                mvc(j,termh());
-                cout<<" ";
+            for (int j = 15; j <= termWidth - 10; ++j) {
+                mvc(j, termh());
+                cout << " ";
             }
-            for(int j=termw();j>=15;j--){
-                mvc(j,termh());
-                clrtxt("▬",DEFAULT,CYAN);
+            for (int j = termWidth; j >= 15; --j) {
+                mvc(j, termh());
+                clrtxt("▬", DEFAULT, CYAN);
             }
-            for(int j=termw();j>=25;j--){
-                mvc(j,termh());
-                cout<<" ";
+            for (int j = termWidth; j >= 25; --j) {
+                mvc(j, termh());
+                cout << " ";
             }
         }
+
         for (size_t i = 0; i < player.hand.size(); ++i) {
             if (isLegalPlay(player.hand[i], topCard)) {
                 Card played = player.hand[i];
@@ -434,7 +667,6 @@ void UNOGame::handleHumanTurn() {
     drawMessage(string("[←][→]选中 [Enter]出牌 [Space]摸牌"), CYAN);
     while (waitingForHumanInput) {
         int key = _getch();
-        
         if (key == '/') {
             auto now = chrono::steady_clock::now();
             if (chrono::duration_cast<chrono::milliseconds>(now - lastSlashTime).count() < 500) {
@@ -453,7 +685,6 @@ void UNOGame::handleHumanTurn() {
         } else {
             slashKeyCount = 0;
         }
-        
         if (key == 224 || key == 0) {
             key = _getch();
             if (key == 75) moveSelectionLeft();
@@ -509,17 +740,14 @@ void UNOGame::drawBorder() {
     clrtxt("╭", CYAN);
     for (int i = 2; i < termWidth; ++i) clrtxt("─", CYAN);
     clrtxt("╮", CYAN);
-
     for (int r = 2; r < termHeight; ++r) {
         mvc(1, r); clrtxt("│", CYAN);
         mvc(termWidth, r); clrtxt("│", CYAN);
     }
-
     mvc(1, termHeight-1);
     clrtxt("╰", CYAN);
     for (int i = 2; i < termWidth; ++i) clrtxt("─", CYAN);
     clrtxt("╯", CYAN);
-
     mvc(termWidth / 2 - 3, 1);
     clrtxt(" UNO ", WHITE, BG_RED, TS_BOLD);
 }
@@ -654,14 +882,12 @@ void UNOGame::updateUI() {
     firstDraw = false;
     printf("%s", oss.str().c_str());
     fflush(stdout);
-    
     lastSelectedIndex = selectedCardIndex;
 }
 
 void UNOGame::updateSelection(int oldIdx, int newIdx) {
     if (oldIdx == newIdx) return;
     if (players[0].hand.empty()) return;
-    
     ostringstream oss;
     auto out_mvc = [&](int x, int y) { oss << "\033[" << y << ";" << x << "H"; };
     auto out_clrtxt = [&](const string& text, int fg = DEFAULT, int bg = BG_DEFAULT, int style = TS_NONE) {
@@ -684,16 +910,13 @@ void UNOGame::updateSelection(int oldIdx, int newIdx) {
             out_mvc(x, y+2); out_clrtxt("     ", DEFAULT);
         }
     };
-    
     int bottomY = termHeight - 4;
     int handStartY = bottomY - 1;
     int leftX = 2;
     int startX = leftX;
     int cardWidth = 6;
     int y = handStartY;
-    
     Card topCard = discardPile.back();
-    
     if (oldIdx >= 0 && oldIdx < (int)players[0].hand.size()) {
         int cardX = startX + oldIdx * cardWidth;
         bool isLegal = isLegalPlay(players[0].hand[oldIdx], topCard);
@@ -704,10 +927,8 @@ void UNOGame::updateSelection(int oldIdx, int newIdx) {
         bool isLegal = isLegalPlay(players[0].hand[newIdx], topCard);
         draw_card_face(players[0].hand[newIdx], cardX, y, true, isLegal);
     }
-    
     printf("%s", oss.str().c_str());
     fflush(stdout);
-    
     lastSelectedIndex = newIdx;
 }
 
@@ -729,40 +950,32 @@ void UNOGame::showCommandBox() {
     int boxH = 5;
     int startX = termWidth / 2 - boxW / 2;
     int startY = termHeight / 2 - boxH / 2;
-    
     mvc(startX, startY);
     clrtxt("╭", CYAN);
     for (int j = 1; j < boxW - 1; ++j) clrtxt("─", CYAN);
     clrtxt("╮", CYAN);
-    
     for (int i = 1; i <= boxH - 2; ++i) {
         mvc(startX, startY + i);
         clrtxt("│", CYAN);
         for (int j = 1; j < boxW - 1; ++j) clrtxt(" ", DEFAULT);
         clrtxt("│", CYAN);
     }
-    
     mvc(startX, startY + boxH - 1);
     clrtxt("╰", CYAN);
     for (int j = 1; j < boxW - 1; ++j) clrtxt("─", CYAN);
     clrtxt("╯", CYAN);
-    
     mvc(startX + 2, startY);
     clrtxt("控制台 [Esc]关闭", CYAN);
     mvc(startX + 2, startY + 2);
-    clrtxt("> ", CYAN);
-    
+    clrtxt("| ", CYAN);
     string input;
     int cursorX = startX + 4;
     int cursorY = startY + 2;
     mvc(cursorX, cursorY);
-    
     auto clearBox = [&]() {
         for (int i = 0; i < boxH; ++i) {
             mvc(startX, startY + i);
-            for (int j = 0; j < boxW; ++j) {
-                clrtxt(" ", DEFAULT);
-            }
+            for (int j = 0; j < boxW; ++j) clrtxt(" ", DEFAULT);
         }
     };
     sc();
@@ -773,9 +986,7 @@ void UNOGame::showCommandBox() {
             clearBox();
             break;
         } else if (ch == 13) {
-            if (!input.empty()) {
-                executeCommand(input);
-            }
+            if (!input.empty()) executeCommand(input);
             clearBox();
             break;
         } else if (ch == 8 || ch == 127) {
@@ -801,13 +1012,10 @@ void UNOGame::executeCommand(const string& cmd) {
     string command;
     iss >> command;
     transform(command.begin(), command.end(), command.begin(), ::tolower);
-    
     if (command == "hand") {
         for (size_t i = 0; i < players.size(); ++i) {
             string msg = players[i].name + " 的手牌: ";
-            for (const auto& card : players[i].hand) {
-                msg += card.toString() + " ";
-            }
+            for (const auto& card : players[i].hand) msg += card.toString() + " ";
             drawMessage(msg, CYAN);
             this_thread::sleep_for(chrono::milliseconds(1000));
         }
@@ -836,23 +1044,16 @@ void UNOGame::executeCommand(const string& cmd) {
             clearMessageArea();
             return;
         }
-        
         Card newCard;
-        if (typeStr == "wild") {
-            newCard = Card(COLOR_NONE, WILD);
-        } else if (typeStr == "+4" || typeStr == "wild+4") {
-            newCard = Card(COLOR_NONE, WILD_DRAW_FOUR);
-        } else if (typeStr == "skip") {
-            newCard = Card(color, SKIP);
-        } else if (typeStr == "reverse") {
-            newCard = Card(color, REVERSE);
-        } else if (typeStr == "+2") {
-            newCard = Card(color, DRAW_TWO);
-        } else {
+        if (typeStr == "wild") newCard = Card(COLOR_NONE, WILD);
+        else if (typeStr == "+4" || typeStr == "wild+4") newCard = Card(COLOR_NONE, WILD_DRAW_FOUR);
+        else if (typeStr == "skip") newCard = Card(color, SKIP);
+        else if (typeStr == "reverse") newCard = Card(color, REVERSE);
+        else if (typeStr == "+2") newCard = Card(color, DRAW_TWO);
+        else {
             int num = atoi(typeStr.c_str());
-            if (num >= 0 && num <= 9) {
-                newCard = Card(color, NUMBER, num);
-            } else {
+            if (num >= 0 && num <= 9) newCard = Card(color, NUMBER, num);
+            else {
                 drawMessage("无效的牌型", RED);
                 this_thread::sleep_for(chrono::milliseconds(1500));
                 clearMessageArea();
@@ -889,9 +1090,7 @@ void UNOGame::executeCommand(const string& cmd) {
         for (size_t i = 1; i < players.size(); ++i) {
             if (players[i].isAI) {
                 string msg = players[i].name + " 的手牌: ";
-                for (const auto& card : players[i].hand) {
-                    msg += card.toString() + " ";
-                }
+                for (const auto& card : players[i].hand) msg += card.toString() + " ";
                 drawMessage(msg, MAGENTA);
                 this_thread::sleep_for(chrono::milliseconds(1000));
             }
@@ -903,9 +1102,7 @@ void UNOGame::executeCommand(const string& cmd) {
         int count;
         iss >> count;
         if (count <= 0 || count > 20) count = 1;
-        for (int i = 0; i < count; ++i) {
-            players[currentPlayer].addCard(drawCard());
-        }
+        for (int i = 0; i < count; ++i) players[currentPlayer].addCard(drawCard());
         drawMessage(string("已摸 ") + to_string(count) + " 张牌", CYAN);
         this_thread::sleep_for(chrono::milliseconds(1500));
         clearMessageArea();
@@ -915,25 +1112,12 @@ void UNOGame::executeCommand(const string& cmd) {
         this_thread::sleep_for(chrono::milliseconds(2000));
         clearMessageArea();
     }
-    
-    if (!gameOver) {
-        updateUI();
-    }
+    if (!gameOver) updateUI();
 }
 
 void UNOGame::run() {
-    drawFullUI();
-    while (!gameOver) {
-        playTurn();
-        if (gameOver) break;
-        if (players[currentPlayer].isAI) this_thread::sleep_for(chrono::milliseconds(600));
-    }
-    mvc(termw()/2-8, termh()/2);
-    string victoryMsg = string("游戏结束！胜利者是: ") + players[winnerIndex].name;
-    clrtxt(victoryMsg, GREEN);
-    mvc(termw()/2-8, termh()/2+1);
-    clrtxt("[Enter]×2 退出", DEFAULT);
-    cin.ignore(); cin.get();
+    showStartupAnimation();
+    showMainMenu();
 }
 
 int main() {
