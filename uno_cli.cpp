@@ -92,7 +92,9 @@ public:
     void run();
 
 private:
+    void clearScreen();
     void setupPlayers();
+    void mainPage();
     void initGame();
     void createDeck();
     void shuffleDeck();
@@ -131,6 +133,27 @@ UNOGame::UNOGame() : lastCurrentPlayer(-1), lastDrawPileSize(-1), firstDraw(true
     initGame();
 }
 
+void UNOGame::clearScreen(){
+    mvc(1,1);
+    for(int i=1;i<=termh();i++){
+        for(int j=1;j<=termw();j++){
+            cout<<" ";
+        }
+        cout<<endl;
+    }
+}
+
+void UNOGame::mainPage(){
+    UNOGame::clearScreen();
+    mvc(1,1);
+    clrtxt("UNO CLI\n", CYAN, TS_BOLD);
+    clrtxt(" 新游戏[N]\n", WHITE);
+    clrtxt(" 选项[O]\n", WHITE);
+    mvc(1,termh()-1);
+    clrtxt(" 关于[A]\n", WHITE);
+    
+}
+
 void UNOGame::setupPlayers() {
     mvc(termw()/2-8,termh()/2-5);
     clrtxt("#   # #   #  ###", CYAN);
@@ -162,6 +185,7 @@ void UNOGame::setupPlayers() {
             cout<<" ";
         }
     }
+    UNOGame::mainPage();
     mvc(1,termh()/2+3);
     cout<<"          ";
     string playerName;
