@@ -165,6 +165,7 @@ void UNOGame::setupPlayers() {
     mvc(1,termh()/2+3);
     cout<<"          ";
     string playerName;
+    sc();
     mvc(termw()/2-8,termh()/2+3);
     clrtxt("请输入你的名字: ", CYAN);
     getline(cin, playerName);
@@ -182,6 +183,7 @@ void UNOGame::setupPlayers() {
         clrtxt("请输入1到3之间的整数。\n", RED);
         this_thread::sleep_for(chrono::milliseconds(800));
     }
+    hc();
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
     
     for (int i = 1; i <= aiCount; ++i)
@@ -331,7 +333,7 @@ bool UNOGame::playTurn() {
     Card topCard = discardPile.back();
     updateUI();
     if (player.isAI) {
-        drawMessage("AI思考中...", DEFAULT);
+        drawMessage("AI思考中...", CYAN);
         mvc(15,termh());
         clrtxt("▬▬▬▬▬▬▬▬▬▬",DEFAULT,CYAN);
         for(int i=1;i<=2;i++){
@@ -479,22 +481,22 @@ void UNOGame::handleHumanTurn() {
 }
 
 void UNOGame::drawBorder() {
-    mvc(0, 0);
+    mvc(1, 1);
     clrtxt("╭", CYAN);
-    for (int i = 1; i < termWidth - 1; ++i) clrtxt("─", CYAN);
+    for (int i = 2; i < termWidth; ++i) clrtxt("─", CYAN);
     clrtxt("╮", CYAN);
 
-    for (int r = 1; r < termHeight - 1; ++r) {
-        mvc(0, r); clrtxt("│", CYAN);
-        mvc(termWidth - 1, r); clrtxt("│", CYAN);
+    for (int r = 2; r < termHeight; ++r) {
+        mvc(1, r); clrtxt("│", CYAN);
+        mvc(termWidth, r); clrtxt("│", CYAN);
     }
 
-    mvc(0, termHeight - 1);
+    mvc(1, termHeight-1);
     clrtxt("╰", CYAN);
-    for (int i = 1; i < termWidth - 1; ++i) clrtxt("─", CYAN);
+    for (int i = 2; i < termWidth; ++i) clrtxt("─", CYAN);
     clrtxt("╯", CYAN);
 
-    mvc(termWidth / 2 - 4, 0);
+    mvc(termWidth / 2 - 3, 1);
     clrtxt(" UNO ", WHITE, BG_RED, TS_BOLD);
 }
 
@@ -504,8 +506,6 @@ void UNOGame::drawFullUI() {
     drawBorder();
     int centerX = termWidth / 2 - 7;
     int centerY = termHeight / 2 - 2;
-    mvc(centerX, centerY-1); clrtxt("弃牌堆", CYAN);
-    mvc(centerX, centerY+4); clrtxt("摸牌堆", CYAN);
     int n = players.size();
     int topY = 2, bottomY = termHeight - 4, leftX = 2, rightX = termWidth - 12;
     for (int i = 0; i < n; ++i) {
@@ -723,13 +723,13 @@ void UNOGame::showCommandBox() {
     for (int j = 1; j < boxW - 1; ++j) clrtxt("─", CYAN);
     clrtxt("╯", CYAN);
     
-    mvc(startX + 2, startY + 1);
-    clrtxt("===== 作弊控制台 =====", YELLOW);
+    mvc(startX + 2, startY);
+    clrtxt("控制台 [Esc]关闭", CYAN);
     mvc(startX + 2, startY + 2);
-    clrtxt("输入命令 (ESC取消): ", CYAN);
+    clrtxt("> ", CYAN);
     
     string input;
-    int cursorX = startX + 22;
+    int cursorX = startX + 4;
     int cursorY = startY + 2;
     mvc(cursorX, cursorY);
     
@@ -741,10 +741,11 @@ void UNOGame::showCommandBox() {
             }
         }
     };
-    
+    sc();
     while (true) {
         int ch = _getch();
         if (ch == 27) {
+            hc();
             clearBox();
             break;
         } else if (ch == 13) {
@@ -767,7 +768,7 @@ void UNOGame::showCommandBox() {
             clrtxt(temp, WHITE);
         }
     }
-    
+    hc();
     updateUI();
 }
 
@@ -907,7 +908,7 @@ void UNOGame::run() {
     string victoryMsg = string("游戏结束！胜利者是: ") + players[winnerIndex].name;
     clrtxt(victoryMsg, GREEN);
     mvc(termw()/2-8, termh()/2+1);
-    clrtxt("[Enter]退出", DEFAULT);
+    clrtxt("[Enter]×2 退出", DEFAULT);
     cin.ignore(); cin.get();
 }
 
