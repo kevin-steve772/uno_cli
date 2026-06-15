@@ -720,7 +720,7 @@ void UNOGame::handleHumanTurn() {
                     applyCardEffect(newCard);
                     waitingForHumanInput = false; return;
                 } else {
-                    drawMessage(string("保留新牌，轮到下一家。"), DEFAULT);
+                    drawMessage(string("保留新牌，轮到下一家。"), WHITE);
                     this_thread::sleep_for(chrono::milliseconds(800));
                     currentPlayer = getNextPlayer();
                     waitingForHumanInput = false; return;
@@ -858,7 +858,7 @@ void UNOGame::updateUI() {
             }
             if (handSize > maxDisplay) {
                 out_mvc(startX + maxDisplay * 6, y+1);
-                out_clrtxt("...", DEFAULT);
+                out_clrtxt("...", WHITE);
             }
         }
     }
