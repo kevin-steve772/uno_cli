@@ -829,7 +829,7 @@ void UNOGame::updateUI() {
         string playerInfo = players[i].name + " [" + to_string(players[i].getHandSize()) + "]";
         out_mvc(x, y-2);
         out_fixed(playerInfo, 40, (i == currentPlayer) ? CYAN : DEFAULT);
-        if (players[i].isAI) out_clrtxt(" [AI]", MAGENTA);
+
 
         if (i == 0) {
             int maxCards = (termWidth - leftX) / 6;
