@@ -802,7 +802,7 @@ void UNOGame::updateUI() {
     };
     auto draw_card_back = [&](int x, int y) {
         out_mvc(x, y);   out_clrtxt("     ", DEFAULT);
-        out_mvc(x, y+1); out_clrtxt("UNO ", DEFAULT, BG_BLUE, TS_BOLD);
+        out_mvc(x, y+1); out_clrtxt("UNO ", WHITE, BG_BLUE, TS_BOLD);
         out_mvc(x, y+2); out_clrtxt("     ", DEFAULT);
     };
     auto clear_card_area = [&](int x, int y) {
