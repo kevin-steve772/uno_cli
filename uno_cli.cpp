@@ -162,8 +162,7 @@ void UNOGame::showStartupAnimation() {
     mvc(midX - 8, midY - 2);
     clrtxt("#   # #  ## #   #", CYAN, TS_BOLD);
     mvc(midX - 8, midY - 1);
-    clrtxt(" ###  #   #  ###", CYAN, TS_BOLD);
-
+    clrtxt(" ###  #   #  ### CLI", CYAN, TS_BOLD);
     int lineY = midY + 3;
     mvc(1, lineY);
     clrtxt("▬▬▬▬▬▬▬▬▬▬", DEFAULT, CYAN);
@@ -234,7 +233,7 @@ void UNOGame::updateRightContent() {
         mvc(rightStartX + 4, startY + 5);
         clrtxt("- hand : 显示所有玩家手牌", WHITE);
         mvc(rightStartX + 4, startY + 6);
-        clrtxt("- add <颜色> <牌> : 添加指定牌", WHITE);
+        clrtxt("- add <颜色> <牌> <数量>: 添加指定牌", WHITE);
         mvc(rightStartX + 4, startY + 7);
         clrtxt("- skip : 跳过当前玩家", WHITE);
         mvc(rightStartX + 4, startY + 8);
@@ -257,7 +256,7 @@ void UNOGame::updateRightContent() {
         mvc(rightStartX + 2, startY + 5);
         clrtxt("版本: 1.2.0", WHITE);
         mvc(rightStartX + 2, startY + 7);
-        clrtxt("GitHub：https://github.com/kevin-steve772/uno_cli", WHITE);
+        clrtxt("GitHub: https://github.com/kevin-steve772/uno_cli", WHITE);
     }
 }
 
@@ -284,7 +283,7 @@ void UNOGame::drawMenuUI() {
     mvc(5, artStartY + 3);
     clrtxt("#   # #  ## #   #", CYAN, TS_BOLD);
     mvc(5, artStartY + 4);
-    clrtxt(" ###  #   #  ###", CYAN, TS_BOLD);
+    clrtxt(" ###  #   #  ### CLI", CYAN, TS_BOLD);
 
     // 菜单选项
     int menuStartY = artStartY + 8;
@@ -362,7 +361,7 @@ void UNOGame::showMainMenu() {
                 mvc(midX - (int)victoryMsg.size()/2, midY);
                 clrtxt(victoryMsg, GREEN);
                 mvc(midX - 15, midY + 2);
-                clrtxt("按 [Enter] 返回主菜单", DEFAULT);
+                clrtxt("按 [Enter] 返回主菜单", WHITE);
                 cin.ignore(); cin.get();
                 players.clear();
                 drawPile.clear();
@@ -422,7 +421,7 @@ void UNOGame::setupPlayers() {
     mvc(midX - 8, midY - 2);
     clrtxt("#   # #  ## #   #", CYAN);
     mvc(midX - 8, midY - 1);
-    clrtxt(" ###  #   #  ###", CYAN);
+    clrtxt(" ###  #   #  ### CLI", CYAN);
 
     string playerName;
     mvc(midX - 8, midY + 3);
@@ -836,7 +835,7 @@ void UNOGame::updateUI() {
 
         string playerInfo = players[i].name + " [" + to_string(players[i].getHandSize()) + "]";
         out_mvc(x, y-2);
-        out_fixed(playerInfo, 40, (i == currentPlayer) ? CYAN : DEFAULT);
+        out_fixed(playerInfo, 40, (i == currentPlayer) ? CYAN : WHITE);
 
 
         if (i == 0) {
@@ -879,7 +878,7 @@ void UNOGame::updateUI() {
     int centerX = termWidth / 2 - 7, centerY = termHeight / 2 - 2;
     out_mvc(centerX, centerY+5);
     if (!drawPile.empty()) draw_card_back(centerX, centerY+5);
-    else out_clrtxt("(空)", DEFAULT);
+    else out_clrtxt("(空)", WHITE);
     lastDrawPileSize = drawPile.size();
 
     int dirX = termWidth-30, dirY = termHeight/2;
@@ -1032,9 +1031,10 @@ void UNOGame::executeCommand(const string& cmd) {
     }
     else if (command == "add") {
         string colorStr, typeStr;
-        iss >> colorStr >> typeStr;
+        int num;
+        iss >> colorStr >> typeStr >> num;
         if (colorStr.empty()) {
-            drawMessage("用法: add <颜色> <点数或类型>", RED);
+            drawMessage("用法: add <颜色> <点数或类型> <数量>", RED);
             this_thread::sleep_for(chrono::milliseconds(1500));
             clearMessageArea();
             return;
@@ -1068,7 +1068,9 @@ void UNOGame::executeCommand(const string& cmd) {
                 return;
             }
         }
-        players[currentPlayer].addCard(newCard);
+        for(int i=1;i<=num;i++){
+            players[currentPlayer].addCard(newCard);
+        }
         drawMessage(string("已添加: ") + newCard.toString(), GREEN);
         this_thread::sleep_for(chrono::milliseconds(1500));
         clearMessageArea();
