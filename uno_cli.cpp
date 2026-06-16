@@ -171,18 +171,22 @@ void UNOGame::showStartupAnimation() {
         for (int j = 1; j <= termWidth; ++j) {
             mvc(j, lineY);
             clrtxt("▬", DEFAULT, CYAN);
+            
         }
         for (int j = 1; j <= termWidth - 10; ++j) {
             mvc(j, lineY);
             cout << " ";
+            
         }
         for (int j = termWidth; j >= 1; --j) {
             mvc(j, lineY);
             clrtxt("▬", DEFAULT, CYAN);
+            
         }
         for (int j = termWidth; j >= 10; --j) {
             mvc(j, lineY);
             cout << " ";
+            
         }
     }
     clearScreen();
@@ -596,18 +600,22 @@ bool UNOGame::playTurn() {
             for (int j = 15; j <= termWidth; ++j) {
                 mvc(j, termh());
                 clrtxt("▬", DEFAULT, CYAN);
+                
             }
             for (int j = 15; j <= termWidth - 10; ++j) {
                 mvc(j, termh());
                 cout << " ";
+                
             }
             for (int j = termWidth; j >= 15; --j) {
                 mvc(j, termh());
                 clrtxt("▬", DEFAULT, CYAN);
+                
             }
             for (int j = termWidth; j >= 25; --j) {
                 mvc(j, termh());
                 cout << " ";
+                
             }
         }
 
