@@ -220,7 +220,7 @@ void UNOGame::updateRightContent() {
         mvc(rightStartX + 4, startY + 6);
         clrtxt("- 出牌需匹配颜色或数字/符号", WHITE);
         mvc(rightStartX + 4, startY + 7);
-        clrtxt("- 功能牌：跳过、反转、+2、万能、+4", WHITE);
+        clrtxt("- 功能牌：跳过(→)、反转(↻)、+2、万能(⫶)、+4", WHITE);
         mvc(rightStartX + 4, startY + 8);
         clrtxt("- 最先出完手牌者获胜", WHITE);
     } else if (currentMenuItem == 1) {
