@@ -48,7 +48,7 @@ struct Card {
             case COLOR_GREEN:  return GREEN;
             case COLOR_BLUE:   return BLUE;
             case COLOR_YELLOW: return YELLOW;
-            default:           return DEFAULT;
+            default:           return WHITE;
         }
     }
     bool operator==(const Card& other) const {
@@ -531,6 +531,10 @@ void UNOGame::applyCardEffect(const Card& card) {
         CardColor newColor = chooseWildColor();
         discardPile.back().color = newColor;
         currentPlayer = getNextPlayerAfterSkip(next);
+    }
+    else if(card.type==WILD){
+        CardColor newColor = chooseWildColor();
+        discardPile.back().color = newColor;
     }
     else if (card.type == SKIP) {
         int next = getNextPlayer();
@@ -1134,6 +1138,10 @@ int main() {
 #ifdef _WIN32
     SetConsoleOutputCP(65001);
 #endif
-    setup(); hc(); UNOGame game; game.run(); sc();
+    setup();
+    hc();
+    UNOGame game;
+    game.run();
+    sc();
     return 0;
 }
