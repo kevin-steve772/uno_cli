@@ -312,19 +312,15 @@ void UNOGame::showMainMenu() {
                 int oldItem = currentMenuItem;
                 currentMenuItem = (currentMenuItem - 1 + 3) % 3;
                 if (oldItem != currentMenuItem) {
-                    // 更新左侧高亮
                     int artStartY = 3;
                     int menuStartY = artStartY + 8;
                     string menuItems[3] = { "新建游戏", "[O] 选项", "[A] 关于" };
-                    // 清除旧高亮
                     mvc(3, menuStartY + oldItem * 2);
                     clrtxt("  ", DEFAULT);
                     clrtxt(menuItems[oldItem].c_str(), WHITE);
-                    // 绘制新高亮
                     mvc(3, menuStartY + currentMenuItem * 2);
                     clrtxt("| ", CYAN);
                     clrtxt(menuItems[currentMenuItem].c_str(), CYAN, TS_BOLD);
-                    // 更新右侧内容
                     updateRightContent();
                 }
             } else if (key == 80) { // 下
@@ -345,7 +341,6 @@ void UNOGame::showMainMenu() {
             }
         } else if (key == 13) { // Enter
             if (currentMenuItem == 0) {
-                // 新游戏
                 setupPlayers();
                 initGame();
                 drawFullUI();
@@ -361,15 +356,15 @@ void UNOGame::showMainMenu() {
                 mvc(midX - (int)victoryMsg.size()/2, midY);
                 clrtxt(victoryMsg, GREEN);
                 mvc(midX - 15, midY + 2);
-                clrtxt("按 [Enter] 返回主菜单", WHITE);
-                cin.ignore(); cin.get();
+                clrtxt("按任意键返回主菜单", WHITE);
+                _getch();  // 等待按键，避免 cin 混用
                 players.clear();
                 drawPile.clear();
                 discardPile.clear();
                 gameOver = false;
                 termHeight = termh();
                 termWidth = termw();
-                drawMenuUI();  // 重新绘制菜单界面
+                drawMenuUI();
             }
         } else if (key == 'o' || key == 'O') {
             if (currentMenuItem != 1) {
