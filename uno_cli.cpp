@@ -88,6 +88,12 @@ private:
 
     // 主菜单状态
     int currentMenuItem; // 0:新游戏, 1:选项, 2:关于
+    bool focusOnRight;    // 是否聚焦在右侧内容
+    int rightSubItem;     // 选项页的子项索引 (0,1,2)
+
+    // 作弊开关
+    bool cheatEnabled;
+    bool cheatPenalty;
 
 public:
     UNOGame();
@@ -132,8 +138,11 @@ private:
     void executeCommand(const string& cmd);
 };
 
-UNOGame::UNOGame() : lastCurrentPlayer(-1), lastDrawPileSize(-1), firstDraw(true), selectedCardIndex(0), lastSelectedIndex(-1), waitingForHumanInput(false),
-                     slashKeyCount(0), lastSlashTime(chrono::steady_clock::now()), currentMenuItem(0) {
+UNOGame::UNOGame() : lastCurrentPlayer(-1), lastDrawPileSize(-1), firstDraw(true), 
+                     selectedCardIndex(0), lastSelectedIndex(-1), waitingForHumanInput(false),
+                     slashKeyCount(0), lastSlashTime(chrono::steady_clock::now()), 
+                     currentMenuItem(0), focusOnRight(false), rightSubItem(0),
+                     cheatEnabled(false), cheatPenalty(false) {
     srand(time(nullptr));
 }
 
@@ -209,6 +218,7 @@ void UNOGame::updateRightContent() {
     int rightStartX = 32;
     int startY = 5;
     if (currentMenuItem == 0) {
+        // 新建游戏页（不变）
         mvc(rightStartX + 2, startY);
         clrtxt("新建游戏", YELLOW, TS_BOLD);
         mvc(rightStartX + 2, startY + 2);
@@ -224,27 +234,53 @@ void UNOGame::updateRightContent() {
         mvc(rightStartX + 4, startY + 8);
         clrtxt("- 最先出完手牌者获胜", WHITE);
     } else if (currentMenuItem == 1) {
-        mvc(rightStartX + 2, startY);
-        clrtxt("选项", YELLOW, TS_BOLD);
-        mvc(rightStartX + 2, startY + 2);
-        clrtxt("此版本暂无更多设置", WHITE);
-        mvc(rightStartX + 2, startY + 4);
-        clrtxt("作弊命令（游戏中连续按 7 次 / 开启控制台）：", CYAN);
-        mvc(rightStartX + 4, startY + 5);
-        clrtxt("- hand : 显示所有玩家手牌", WHITE);
-        mvc(rightStartX + 4, startY + 6);
-        clrtxt("- add <颜色> <牌> <数量>: 添加指定牌", WHITE);
-        mvc(rightStartX + 4, startY + 7);
-        clrtxt("- skip : 跳过当前玩家", WHITE);
-        mvc(rightStartX + 4, startY + 8);
-        clrtxt("- dir : 反转出牌方向", WHITE);
-        mvc(rightStartX + 4, startY + 9);
-        clrtxt("- win : 强制胜利", WHITE);
-        mvc(rightStartX + 4, startY + 10);
-        clrtxt("- reveal : 显示 AI 手牌", WHITE);
-        mvc(rightStartX + 4, startY + 11);
-        clrtxt("- draw <数量> : 摸牌", WHITE);
+        // 选项页
+        if (!focusOnRight) {
+            // 非焦点模式：显示作弊命令列表（原内容）
+            mvc(rightStartX + 2, startY);
+            clrtxt("选项", YELLOW, TS_BOLD);
+            mvc(rightStartX + 2, startY + 4);
+            clrtxt("作弊命令（游戏中连续按 7 次 / 开启控制台）：", CYAN);
+            mvc(rightStartX + 4, startY + 5);
+            clrtxt("- hand : 显示所有玩家手牌", WHITE);
+            mvc(rightStartX + 4, startY + 6);
+            clrtxt("- add <颜色> <牌> <数量>: 添加指定牌", WHITE);
+            mvc(rightStartX + 4, startY + 7);
+            clrtxt("- skip : 跳过当前玩家", WHITE);
+            mvc(rightStartX + 4, startY + 8);
+            clrtxt("- dir : 反转出牌方向", WHITE);
+            mvc(rightStartX + 4, startY + 9);
+            clrtxt("- win : 强制胜利", WHITE);
+            mvc(rightStartX + 4, startY + 10);
+            clrtxt("- reveal : 显示 AI 手牌", WHITE);
+            mvc(rightStartX + 4, startY + 11);
+            clrtxt("- draw <数量> : 摸牌", WHITE);
+            mvc(rightStartX + 2, startY + 13);
+            clrtxt(string("作弊: ") + (cheatEnabled ? "开" : "关"), CYAN);
+            mvc(rightStartX + 2, startY + 15);
+            clrtxt("[→] 进入选项菜单", CYAN);
+        } else {
+            // 焦点模式：显示选项子菜单
+            string subItems[3] = { 
+                "允许作弊: " + string(cheatEnabled ? "开" : "关") 
+            };
+            mvc(rightStartX + 2, startY);
+            clrtxt("选项设置", YELLOW, TS_BOLD);
+            for (int i = 0; i < 3; ++i) {
+                mvc(rightStartX + 2, startY + 2 + i * 2);
+                if (i == rightSubItem) {
+                    clrtxt("| ", CYAN);
+                    clrtxt(subItems[i].c_str(), CYAN, TS_BOLD);
+                } else {
+                    clrtxt("  ", DEFAULT);
+                    clrtxt(subItems[i].c_str(), WHITE);
+                }
+            }
+            mvc(rightStartX + 2, startY + 10);
+            clrtxt("[↑][↓] 选择  [Enter] 切换  [←] 返回", CYAN);
+        }
     } else if (currentMenuItem == 2) {
+        // 关于页（不变）
         mvc(rightStartX + 2, startY);
         clrtxt("关于", YELLOW, TS_BOLD);
         mvc(rightStartX + 2, startY + 2);
@@ -308,66 +344,129 @@ void UNOGame::showMainMenu() {
         int key = _getch();
         if (key == 224 || key == 0) {
             key = _getch();
-            if (key == 72) { // 上
-                int oldItem = currentMenuItem;
-                currentMenuItem = (currentMenuItem - 1 + 3) % 3;
-                if (oldItem != currentMenuItem) {
-                    int artStartY = 3;
-                    int menuStartY = artStartY + 8;
-                    string menuItems[3] = { "新建游戏", "[O] 选项", "[A] 关于" };
-                    mvc(3, menuStartY + oldItem * 2);
-                    clrtxt("  ", DEFAULT);
-                    clrtxt(menuItems[oldItem].c_str(), WHITE);
-                    mvc(3, menuStartY + currentMenuItem * 2);
-                    clrtxt("| ", CYAN);
-                    clrtxt(menuItems[currentMenuItem].c_str(), CYAN, TS_BOLD);
-                    updateRightContent();
+            if (focusOnRight) {
+                // 右侧焦点模式
+                if (key == 75) { // 左箭头：退出焦点
+                    focusOnRight = false;
+                    updateRightContent(); // 刷新右侧为普通内容
+                } else if (key == 72 || key == 80) {
+                    // 上下切换子项（仅选项页）
+                    if (currentMenuItem == 1) {
+                        int old = rightSubItem;
+                        if (key == 72) rightSubItem = (rightSubItem - 1 + 3) % 3;
+                        else if (key == 80) rightSubItem = (rightSubItem + 1) % 3;
+                        if (old != rightSubItem) {
+                            updateRightContent(); // 仅重绘右侧
+                        }
+                    }
                 }
-            } else if (key == 80) { // 下
-                int oldItem = currentMenuItem;
-                currentMenuItem = (currentMenuItem + 1) % 3;
-                if (oldItem != currentMenuItem) {
-                    int artStartY = 3;
-                    int menuStartY = artStartY + 8;
-                    string menuItems[3] = { "新建游戏", "[O] 选项", "[A] 关于" };
-                    mvc(3, menuStartY + oldItem * 2);
-                    clrtxt("  ", DEFAULT);
-                    clrtxt(menuItems[oldItem].c_str(), WHITE);
-                    mvc(3, menuStartY + currentMenuItem * 2);
-                    clrtxt("| ", CYAN);
-                    clrtxt(menuItems[currentMenuItem].c_str(), CYAN, TS_BOLD);
-                    updateRightContent();
+            } else {
+                // 正常导航栏模式
+                if (key == 72) { // 上
+                    int oldItem = currentMenuItem;
+                    currentMenuItem = (currentMenuItem - 1 + 3) % 3;
+                    if (oldItem != currentMenuItem) {
+                        int artStartY = 3;
+                        int menuStartY = artStartY + 8;
+                        string menuItems[3] = { "新建游戏", "[O] 选项", "[A] 关于" };
+                        mvc(3, menuStartY + oldItem * 2);
+                        clrtxt("  ", DEFAULT);
+                        clrtxt(menuItems[oldItem].c_str(), WHITE);
+                        mvc(3, menuStartY + currentMenuItem * 2);
+                        clrtxt("| ", CYAN);
+                        clrtxt(menuItems[currentMenuItem].c_str(), CYAN, TS_BOLD);
+                        updateRightContent();
+                    }
+                } else if (key == 80) { // 下
+                    int oldItem = currentMenuItem;
+                    currentMenuItem = (currentMenuItem + 1) % 3;
+                    if (oldItem != currentMenuItem) {
+                        int artStartY = 3;
+                        int menuStartY = artStartY + 8;
+                        string menuItems[3] = { "新建游戏", "[O] 选项", "[A] 关于" };
+                        mvc(3, menuStartY + oldItem * 2);
+                        clrtxt("  ", DEFAULT);
+                        clrtxt(menuItems[oldItem].c_str(), WHITE);
+                        mvc(3, menuStartY + currentMenuItem * 2);
+                        clrtxt("| ", CYAN);
+                        clrtxt(menuItems[currentMenuItem].c_str(), CYAN, TS_BOLD);
+                        updateRightContent();
+                    }
+                } else if (key == 77) { // 右箭头：进入焦点（仅选项页）
+                    if (currentMenuItem == 1) {
+                        focusOnRight = true;
+                        rightSubItem = 0;
+                        updateRightContent(); // 刷新为焦点模式
+                    }
                 }
             }
         } else if (key == 13) { // Enter
-            if (currentMenuItem == 0) {
-                setupPlayers();
-                initGame();
-                drawFullUI();
-                while (!gameOver) {
-                    playTurn();
-                    if (gameOver) break;
-                    if (players[currentPlayer].isAI) this_thread::sleep_for(chrono::milliseconds(600));
+            if (!focusOnRight) {
+                if (currentMenuItem == 0) {
+                    // 新建游戏
+                    setupPlayers();
+                    initGame();
+                    drawFullUI();
+                    while (!gameOver) {
+                        playTurn();
+                        if (gameOver) break;
+                        if (players[currentPlayer].isAI) this_thread::sleep_for(chrono::milliseconds(600));
+                    }
+                    clearScreen();
+                    int midX = termw() / 2;
+                    int midY = termh() / 2;
+                    if (cheatPenalty) {
+                        // 显示惩罚界面
+                        string errMsg = "错误 - E02";
+                        mvc(midX - (int)errMsg.size()/2, midY - 2);
+                        clrtxt(errMsg, RED, TS_BOLD);
+                        mvc(midX - 12, midY);
+                        clrtxt("诚信打牌，作弊可耻！", RED, TS_BOLD);
+                        mvc(midX - 12, midY + 2);
+                        clrtxt("按任意键返回主菜单", WHITE);
+                        _getch();
+                        cheatPenalty = false; // 重置惩罚标志
+                    } else {
+                        // 正常胜利
+                        string victoryMsg = string("游戏结束！胜利者是: ") + players[winnerIndex].name;
+                        mvc(midX - (int)victoryMsg.size()/2, midY - 1);
+                        clrtxt(victoryMsg, GREEN);
+                        mvc(midX - 15, midY + 1);
+                        clrtxt("按任意键返回主菜单", WHITE);
+                        _getch();
+                    }
+                    players.clear();
+                    drawPile.clear();
+                    discardPile.clear();
+                    gameOver = false;
+                    termHeight = termh();
+                    termWidth = termw();
+                    focusOnRight = false;
+                    drawMenuUI(); // 重新绘制完整菜单
                 }
-                clearScreen();
-                int midX = termw() / 2;
-                int midY = termh() / 2;
-                string victoryMsg = string("游戏结束！胜利者是: ") + players[winnerIndex].name;
-                mvc(midX - (int)victoryMsg.size()/2, midY);
-                clrtxt(victoryMsg, GREEN);
-                mvc(midX - 15, midY + 2);
-                clrtxt("按任意键返回主菜单", WHITE);
-                _getch();  // 等待按键，避免 cin 混用
-                players.clear();
-                drawPile.clear();
-                discardPile.clear();
-                gameOver = false;
-                termHeight = termh();
-                termWidth = termw();
-                drawMenuUI();
+            } else {
+                // 在焦点模式下按回车执行子项操作（选项页）
+                if (currentMenuItem == 1) {
+                    // 根据 rightSubItem 执行操作
+                    if (rightSubItem == 0) {
+                        drawMessage("切换声音设置", CYAN);
+                        this_thread::sleep_for(chrono::milliseconds(500));
+                        clearMessageArea();
+                    } else if (rightSubItem == 1) {
+                        drawMessage("切换难度设置", CYAN);
+                        this_thread::sleep_for(chrono::milliseconds(500));
+                        clearMessageArea();
+                    } else if (rightSubItem == 2) {
+                        cheatEnabled = !cheatEnabled;
+                        drawMessage(string("作弊已") + (cheatEnabled ? "开启" : "关闭"), CYAN);
+                        this_thread::sleep_for(chrono::milliseconds(500));
+                        clearMessageArea();
+                        updateRightContent(); // 刷新显示开关状态
+                    }
+                }
             }
         } else if (key == 'o' || key == 'O') {
-            if (currentMenuItem != 1) {
+            if (!focusOnRight && currentMenuItem != 1) {
                 int oldItem = currentMenuItem;
                 currentMenuItem = 1;
                 int artStartY = 3;
@@ -382,7 +481,7 @@ void UNOGame::showMainMenu() {
                 updateRightContent();
             }
         } else if (key == 'a' || key == 'A') {
-            if (currentMenuItem != 2) {
+            if (!focusOnRight && currentMenuItem != 2) {
                 int oldItem = currentMenuItem;
                 currentMenuItem = 2;
                 int artStartY = 3;
@@ -397,7 +496,7 @@ void UNOGame::showMainMenu() {
                 updateRightContent();
             }
         } else if (key == 'q' || key == 'Q') {
-            break;
+            if (!focusOnRight) break;
         }
     }
 }
@@ -683,9 +782,17 @@ void UNOGame::handleHumanTurn() {
             lastSlashTime = now;
             if (slashKeyCount >= 7) {
                 slashKeyCount = 0;
-                showCommandBox();
-                updateUI();
-                drawMessage(string("[←][→]选中 [Enter]出牌 [Space]摸牌"), CYAN);
+                if (!cheatEnabled) {
+                    // 作弊被禁止，触发惩罚
+                    cheatPenalty = true;
+                    gameOver = true;
+                    waitingForHumanInput = false;
+                    return; // 立即退出函数
+                } else {
+                    showCommandBox();
+                    updateUI();
+                    drawMessage(string("[←][→]选中 [Enter]出牌 [Space]摸牌"), CYAN);
+                }
             }
             continue;
         } else {
