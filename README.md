@@ -51,10 +51,14 @@ UNO是一种流行的卡牌游戏，适合2-4人玩。 游戏的目标是成为�
 - [x] 加入类似于Minecraft的指令系统，用来调试。（在游戏中狂按`/`调出）
 - [ ] 制作配置菜单。
 - [x] 修复一个已知的牌桌边框显示Bug。
-## 提Bug和功能建议
+## 关于Dev edition
+看见上面的源码了吗？这是Dev edition的源码。
+我随时会把当前开发过程的源代码Commit上去，让你们随时可以看看我的开发进度。
+Dev edition因为没开发完全，Bug是常有的事，所以请不要交Dev edition的Issue。
+## Bug/建议报告
 如果你在使用过程中遇到任何问题，或者有任何功能建议，请随时在GitHub仓库的[Issue](https://github.com/kevin-steve772/uno_cli/issues)页面提交你的反馈。我们会尽快回复并处理你的问题。
 ### Issue(Bug)中包含的内容
-- 版本(或者是在源码里下的程序？)
+- 版本？(在源码里下的程序(Dev edition)不接受Issue。)
 - Bug怎么发生的？
 - 我可以怎么复现它？
 ### Issue(建议)中包含的内容
