@@ -813,10 +813,11 @@ void UNOGame::updateUI() {
     };
     auto draw_card_back = [&](int x, int y) {
         out_mvc(x, y);   out_clrtxt("     ", DEFAULT);
-        out_mvc(x, y+1); out_clrtxt("UNO ", WHITE, BG_BLUE, TS_BOLD);
+        out_mvc(x, y+1); out_clrtxt("UNO", WHITE, BG_BLUE, TS_BOLD); out_clrtxt("│", BLACK, BG_BLUE);
         out_mvc(x, y+2); out_clrtxt("     ", DEFAULT);
     };
     auto clear_card_area = [&](int x, int y) {
+        if (x + 5 > termWidth - 1) return;
         out_mvc(x, y);   out_clrtxt("     ", DEFAULT);
         out_mvc(x, y+1); out_clrtxt("     ", DEFAULT);
         out_mvc(x, y+2); out_clrtxt("     ", DEFAULT);
@@ -839,10 +840,13 @@ void UNOGame::updateUI() {
 
         string playerInfo = players[i].name + " [" + to_string(players[i].getHandSize()) + "]";
         out_mvc(x, y-2);
-        out_fixed(playerInfo, 40, (i == currentPlayer) ? CYAN : WHITE);
-
+        // 计算最大宽度，不超出右边框（保留1列给边框）
+        int maxWidth = termWidth - x - 1;
+        if (maxWidth > 40) maxWidth = 40; // 限制最大宽度，避免过长
+        out_fixed(playerInfo, maxWidth, (i == currentPlayer) ? CYAN : WHITE);
 
         if (i == 0) {
+            // 人类玩家手牌
             int maxCards = (termWidth - leftX) / 6;
             int handSize = players[0].hand.size();
             for (int k = handSize; k < maxCards; ++k) {
@@ -856,35 +860,41 @@ void UNOGame::updateUI() {
                 draw_card_face(players[0].hand[j], cardX, y, isSelected, isLegal);
             }
         } else {
+            // AI 手牌：只显示一张牌背 + 数量
             int startX = x;
-            int maxDisplay = 8;
             int handSize = players[i].getHandSize();
-            for (int k = handSize; k < maxDisplay; ++k) {
-                clear_card_area(startX + k * 6, y);
+
+            // 清除可能残留的区域（只清两个卡片位，避免覆盖边框）
+            for (int k = 0; k < 2; ++k) {
+                int cardX = startX + k * 6;
+                if (cardX + 5 > termWidth - 1) break;
+                clear_card_area(cardX, y);
             }
-            clear_card_area(startX + maxDisplay * 6, y);
-            int drawCount = min(handSize, maxDisplay);
-            for (int k = 0; k < drawCount; ++k) {
-                draw_card_back(startX + k * 6, y);
-            }
-            if (handSize > maxDisplay) {
-                out_mvc(startX + maxDisplay * 6, y+1);
-                out_clrtxt("...", WHITE);
+
+            if (handSize > 0) {
+                draw_card_back(startX, y);
+                out_mvc(startX + 7, y + 1);
+            } else {
+                out_mvc(startX, y + 1);
+                out_clrtxt("(空)", WHITE);
             }
         }
     }
 
+    // 弃牌堆
     if (!discardPile.empty()) {
         int centerX = termWidth / 2 - 7, centerY = termHeight / 2 - 2;
         draw_card_face(discardPile.back(), centerX, centerY, false, false);
     }
 
+    // 摸牌堆
     int centerX = termWidth / 2 - 7, centerY = termHeight / 2 - 2;
     out_mvc(centerX, centerY+5);
     if (!drawPile.empty()) draw_card_back(centerX, centerY+5);
     else out_clrtxt("(空)", WHITE);
     lastDrawPileSize = drawPile.size();
 
+    // 方向指示
     int dirX = termWidth-30, dirY = termHeight/2;
     out_mvc(dirX, dirY); out_clrtxt("出牌方向: ", CYAN);
     string dirText = (direction == 1) ? "顺时针 →" : "逆时针 ←";

@@ -55,6 +55,7 @@ UNO是一种流行的卡牌游戏，适合2-4人玩。 游戏的目标是成为�
 看见上面的源码了吗？这是Dev edition的源码。
 我随时会把当前开发过程的源代码Commit上去，让你们随时可以看看我的开发进度。
 Dev edition因为没开发完全，Bug是常有的事，所以请不要交Dev edition的Issue。
+如果你想要正式版的源码，请移步[Releases](https://github.com/kevin-steve772/uno_cli/releases)中相应版本的Source Code压缩包！
 ## Bug/建议报告
 如果你在使用过程中遇到任何问题，或者有任何功能建议，请随时在GitHub仓库的[Issue](https://github.com/kevin-steve772/uno_cli/issues)页面提交你的反馈。我们会尽快回复并处理你的问题。
 ### Issue(Bug)中包含的内容
@@ -64,5 +65,5 @@ Dev edition因为没开发完全，Bug是常有的事，所以请不要交Dev ed
 ### Issue(建议)中包含的内容
 - 功能具体描述？
 ## 已知的Bug
-- 当AI有2个及以上时，显示会有问题(来自班级中的内测人员)
-- 本该显示白色的东西变成了终端默认颜色(来自我自己)(修复中...)
+- 当AI有2个及以上时，显示会有问题(来自班级中的内测人员)(✅修好了！)
+- 本该显示白色的东西变成了终端默认颜色(来自我自己)(✅修好了！)
