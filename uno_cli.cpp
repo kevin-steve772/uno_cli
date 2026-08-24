@@ -9,7 +9,6 @@
 #include <random>
 #include <thread>
 #include <chrono>
-#include <conio.h>
 #include <sstream>
 #include <limits>
 #include <map>
@@ -17,6 +16,62 @@
 
 #ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS
+#include <conio.h>
+#else
+#include <termios.h>
+#include <unistd.h>
+#endif
+
+#ifndef _WIN32
+int _getch() {
+    static int pendingKey = -1;
+    if (pendingKey != -1) {
+        int key = pendingKey;
+        pendingKey = -1;
+        return key;
+    }
+
+    termios original{};
+    if (tcgetattr(STDIN_FILENO, &original) != 0) return getchar();
+
+    termios raw = original;
+    raw.c_lflag &= ~(ICANON | ECHO);
+    raw.c_cc[VMIN] = 1;
+    raw.c_cc[VTIME] = 0;
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+
+    unsigned char first = 0;
+    if (read(STDIN_FILENO, &first, 1) != 1) {
+        tcsetattr(STDIN_FILENO, TCSANOW, &original);
+        return EOF;
+    }
+
+    int key = first == '\n' ? 13 : first;
+    if (first == 27) {
+        raw.c_cc[VMIN] = 0;
+        raw.c_cc[VTIME] = 1;
+        tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+        unsigned char sequence[2] = {0, 0};
+        ssize_t sequenceLength = read(STDIN_FILENO, sequence, 2);
+        if (sequenceLength == 2 && sequence[0] == '[') {
+            switch (sequence[1]) {
+                case 'A': key = 72; break;
+                case 'B': key = 80; break;
+                case 'C': key = 77; break;
+                case 'D': key = 75; break;
+                default: break;
+            }
+            if (key == 72 || key == 80 || key == 77 || key == 75) {
+                pendingKey = key;
+                tcsetattr(STDIN_FILENO, TCSANOW, &original);
+                return 224;
+            }
+        }
+    }
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &original);
+    return key;
+}
 #endif
 
 using namespace std;
@@ -294,6 +349,7 @@ void UNOGame::updateRightContent() {
         mvc(rightStartX + 2, startY + 7);
         clrtxt("GitHub: https://github.com/kevin-steve772/uno_cli", WHITE);
     }
+    fflush(stdout);
 }
 
 // 首次完整绘制菜单（左侧导航栏+右侧边框），之后切换只调用 updateRightContent

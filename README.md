@@ -19,22 +19,29 @@ UNO是一种流行的卡牌游戏，适合2-4人玩。 游戏的目标是成为�
 > 注意: 该exe文件是为Windows系统编译的，如果你使用的是Linux系统，请参考方式2进行编译运行。
 > Windows - 从v1.1.0开始，我们成功让游戏的exe文件不依赖编译器，不会报dll缺失的错误。
 ### 方式2 - 克隆仓库并编译
-1. 克隆仓库：
+3. 编译项目。
+
+Windows（MinGW）：
    ```bash
    git clone https://github.com/kevin-steve772/uno_cli.git
    ```
-2. 进入项目目录：
-   ```bash
+
+Linux：
    cd ./uno_cli/
    ```
 3. 编译项目：
-   ```bash
+
+> 注意：需要安装 g++ 编译器，并确保其路径已添加到系统 PATH 环境变量中。Linux 版本使用终端 ANSI 控制序列和 termios 单键输入，建议在支持 ANSI 的终端中运行。
+4. 运行游戏。
+
+Windows：
    g++ -std=c++11 -static-libgcc -static-libstdc++ -o uno_game.exe uno_cli.cpp
    ```
 > 注意: 需要安装g++编译器，并确保其路径已添加到系统PATH环境变量中。
-> 如果是Linux，可以使用以下命令编译：
+
+Linux：
 >   ```bash
->    g++ -std=c++11 -o uno_game uno_cli.cpp
+   ./uno_game
 >   ```
 4. 运行游戏：
    ```bash
